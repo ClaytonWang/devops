@@ -1,0 +1,207 @@
+Parameters:    
+    VpcId:
+        Default: 'vpc-07ae063405f3dad33'
+        Type: AWS::EC2::VPC::Id
+        Description: Select a VPC that allows instances access to the Internet.
+    SubnetId:
+        Default: "subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0"   
+        Type: List<AWS::EC2::Subnet::Id>
+        Description: Select at two subnets in your selected VPC.    
+    DesiredCapacity:
+        Type: Number
+        Default: '1'
+        Description: Number of instances to launch in your ECS cluster.
+    MaxSize:
+        Type: Number
+        Default: '1'
+        Description: Maximum number of instances that can be launched in your ECS cluster.
+Resources:
+    twistlockTask: 
+        Type: AWS::ECS::TaskDefinition        
+        Properties:  
+            NetworkMode: "bridge"
+            PlacementConstraints:
+                -
+                    Type: "memberOf"
+                    Expression: "attribute:purpose == infra"
+            ContainerDefinitions: 
+                - 
+                    Name: !Join ['-', [container, !Ref 'AWS::StackName']]            
+                    Image: 'registry-auth.twistlock.com/tw_oa2n0t4msoclvwtadsqzi5dhb8mk7ise/twistlock/console:console_19_07_363'                 
+                    Essential: "true"
+                    MemoryReservation: "800" 
+                    MountPoints: 
+                        - 
+                            SourceVolume: "syslog-socket"
+                            ContainerPath: "/dev/log"
+                            ReadOnly: "false"
+                        - 
+                            SourceVolume: "twistlock-console"
+                            ContainerPath: "/var/lib/twistlock/"
+                            ReadOnly: "false"
+                        - 
+                            SourceVolume: "twistlock-backup-volume"
+                            ContainerPath: "/var/lib/twistlock-backup"
+                            ReadOnly: "false"
+                    ReadonlyRootFilesystem: true
+                    Privileged: false
+                    Command:
+                        -
+                            "/app/server"
+                    PortMappings:
+                        - 
+                            ContainerPort: 8083
+                            HostPort: 8083
+                            Protocol: "tcp"
+                        - 
+                            ContainerPort: 8084
+                            HostPort: 8084
+                            Protocol: "tcp"
+                        - 
+                            ContainerPort: 8081
+                            HostPort: 8081
+                            Protocol: "tcp"
+                    Environment:
+                    -
+                        Name: "SERVICE"
+                        Value: "twistlock"
+                    -
+                        Name: "CONSOLE_CN"
+                        Value: ""
+                    -
+                        Name: "CONSOLE_SAN"
+                        Value: "IP:internal-twistlock-1569991638.ap-southeast-1.elb.amazonaws.com"
+                    -
+                        Name: "HIGH_AVAILABILITY_ENABLED"
+                        Value: "false"
+                    -
+                        Name: "KUBERNETES_ENABLED"
+                        Value: ""
+                    -
+                        Name: "KERBEROS_ENABLED"
+                        Value: ""
+                    -
+                        Name: "CONFIG_PATH"
+                        Value: "/twistlock_console/var/lib/twistlock-config"
+                    -
+                        Name: "LOG_PROD"
+                        Value: "true"
+                    -
+                        Name: "DATA_RECOVERY_ENABLED"
+                        Value: "true"
+                    -
+                        Name: "COMMUNICATION_PORT"
+                        Value: "8084"
+                    -
+                        Name: "MANAGEMENT_PORT_HTTPS"
+                        Value: "8083"
+                    -
+                        Name: "MANAGEMENT_PORT_HTTP"
+                        Value: "8081"
+                    -
+                        Name: "FILESYSTEM_SCAN_ENABLED"
+                        Value: "false"
+                    -
+                        Name: "PROCESS_SCAN_ENABLED"
+                        Value: "false"
+                    -
+                        Name: "SCAP_ENABLED"
+                        Value: "false"
+            Volumes:
+                -
+                    Name: "syslog-socket"
+                    Host: 
+                        SourcePath: "/dev/log"    
+                -
+                    Name: "twistlock-console"
+                    Host: 
+                        SourcePath: "/twistlock_console/var/lib/twistlock"  
+                -
+                    Name: "twistlock-config-volume"
+                    Host: 
+                        SourcePath: "/twistlock_console/var/lib/twistlock-config"    
+                -
+                    Name: "twistlock-backup-volume"
+                    Host: 
+                        SourcePath: "/twistlock_console/var/lib/twistlock-backup"          
+    twistlockService: 
+        Type: AWS::ECS::Service
+        DependsOn: twistlockALBListener
+        Properties: 
+            Cluster: "dev-cluster"
+            DesiredCount: "1"
+            LoadBalancers:
+                - 
+                    ContainerName: !Join ['-', [container, !Ref 'AWS::StackName']]
+                    ContainerPort: '8083'
+                    TargetGroupArn: !Ref 'twistlockTG'
+            TaskDefinition: 
+                Ref: "twistlockTask"    
+    twistlockALBListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        DependsOn: ECSServiceRole
+        Properties:
+            Certificates: 
+                -
+                    CertificateArn: "arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc"
+            DefaultActions:
+                - 
+                    Type: forward
+                    TargetGroupArn: !Ref 'twistlockTG'
+            LoadBalancerArn: 'arn:aws:elasticloadbalancing:ap-southeast-1:476985428237:loadbalancer/app/twistlock/2bf604499594145d'
+            Port: '443'
+            Protocol: HTTPS
+            SslPolicy: 'ELBSecurityPolicy-2016-08'
+    twistlockECSALBListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        DependsOn: twistlockALBListener
+        Properties:
+            Actions:
+                - 
+                    Type: forward
+                    TargetGroupArn: !Ref 'twistlockTG'
+            Conditions:
+                - 
+                    Field: path-pattern
+                    Values: [/]
+            ListenerArn: !Ref 'twistlockALBListener'
+            Priority: 1
+    twistlockTG:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            HealthCheckIntervalSeconds: 10
+            HealthCheckPath: /
+            HealthCheckProtocol: HTTPS
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Name: !Join ['-', [tg, !Ref 'AWS::StackName']]
+            Port: 8083
+            Protocol: HTTPS
+            UnhealthyThresholdCount: 2
+            VpcId: !Ref 'VpcId'
+    ECSServiceRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Statement:
+                    - 
+                        Effect: Allow
+                        Principal:
+                            Service: [ecs.amazonaws.com]
+                        Action: ['sts:AssumeRole']
+            Path: /
+            Policies:
+                - 
+                    PolicyName: !Join ['-', [policy, !Ref 'AWS::StackName']]
+                    PolicyDocument:
+                        Statement:
+                            -   
+                                Effect: Allow
+                                Action: ['elasticloadbalancing:DeregisterInstancesFromLoadBalancer', 
+                                    'elasticloadbalancing:DeregisterTargets',
+                                    'elasticloadbalancing:Describe*', 
+                                    'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
+                                    'elasticloadbalancing:RegisterTargets', 
+                                    'ec2:Describe*', 
+                                    'ec2:AuthorizeSecurityGroupIngress']
+                                Resource: '*'

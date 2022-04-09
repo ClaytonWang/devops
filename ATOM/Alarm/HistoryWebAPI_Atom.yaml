@@ -1,0 +1,44 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  TeamName:
+    Type: String
+    Default: ATOM
+  ProjectName:
+    Type: String
+    Default: HistoryWebAPI
+  ENV:
+    Description: Specify for differnt environments in the same account
+    Type: String
+    Default: prod
+Resources:
+  ErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions: ["arn:aws:sns:us-east-1:206710830665:history_error_prod"]
+      AlarmDescription: HistoryWebAPI-ErrorAlarm-prod
+      AlarmName: HistoryWebAPI-ErrorAlarm-prod
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Threshold: 1
+      EvaluationPeriods: 1      
+      Metrics:      
+      - Id: m1
+        ReturnData: True
+        Label: "Error"
+        MetricStat:
+          Metric:
+            MetricName: HistoryWebAPI-ERROR-prod
+            Namespace: LogMetrics
+          Period: 3600
+          Stat: Sum
+      TreatMissingData: breaching
+  ErrorMetricFilter: 
+    Type: AWS::Logs::MetricFilter
+    Properties: 
+      LogGroupName: "ECSLogGroup-HistoryWebAPI-prod"
+      FilterPattern: "ERROR"
+      MetricTransformations: 
+        - 
+          MetricValue: "1"
+          MetricNamespace: "LogMetrics"
+          MetricName: "HistoryWebAPI-ERROR-prod"
+  

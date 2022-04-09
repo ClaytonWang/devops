@@ -1,0 +1,15 @@
+[
+    
+    {
+        "ParameterKey": "TeamName",
+        "ParameterValue": "DAMO"
+    },
+    {
+        "ParameterKey": "ENV",
+        "ParameterValue": "$env"
+    },
+    {
+        "ParameterKey": "HardenAMI",
+        "ParameterValue": "$HardenAMI"
+    }
+]

@@ -1,0 +1,134 @@
+FROM ubuntu:18.04
+
+# To make it easier for build and release pipelines to run apt-get,
+# configure apt to not require confirmation (assume the -y argument by default)
+ENV DEBIAN_FRONTEND=noninteractive
+RUN echo "APT::Get::Assume-Yes \"true\";" > /etc/apt/apt.conf.d/90assumeyes
+
+# verification
+RUN whereis python3
+
+RUN apt-get update --fix-missing 
+RUN apt-get install apt-utils -y
+RUN apt-get update \
+&& apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        jq \
+        # man for git name-rev/rev-parse
+        man \
+        git \
+        iputils-ping \
+        libcurl3 \
+        libicu55 \
+        libunwind8 \
+        netcat  \
+        bash \
+        build-essential \
+        libssl-dev \
+        libffi-dev \
+        gcc \
+        wget \
+        libsqlite3-dev \
+        libbz2-dev \
+        default-jre \
+        locales \
+        netbase \
+        libsqlite3-dev \
+        libbz2-dev
+
+WORKDIR /usr/bin
+RUN curl --progress-bar -L -k --header "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoidGF5bG9yLndhbmdAbGV4aXNuZXhpcy5jb20iLCJyb2xlIjoiYWRtaW4iLCJncm91cHMiOm51bGwsInByb2plY3RzIjpudWxsLCJzZXNzaW9uVGltZW91dFNlYyI6ODY0MDAsImV4cCI6MTYxMDAwNzc1OSwiaXNzIjoidHdpc3Rsb2NrIn0.O-esMj9vLw8bwt9LvwT-rbF6M2md1dQH8p4JzU_zDKk" https://twistlock.aicat.me/api/v1/util/twistcli > twistcli; 
+RUN chmod a+x twistcli;
+
+# verification
+RUN whereis python3
+# will intall python3.5 when install nodejs
+RUN curl -sL https://deb.nodesource.com/setup_10.x | bash -
+RUN apt-get install -y nodejs
+
+# verification
+RUN whereis python3
+# uninstall python3
+RUN apt-get remove --auto-remove python3.5
+RUN apt-get purge --auto-remove python3.5
+# verification
+RUN whereis python3
+
+# install py3.7
+RUN add-apt-repository main
+RUN apt-get -y install gcc
+RUN add-apt-repository ppa:deadsnakes/ppa
+RUN apt-get -y install python3
+RUN apt-get -y install python3-pip
+
+RUN rm -rf /usr/local/lib/python3.7/test/* \
+&& rm -rf  /usr/src/Python-3.7.5/Lib/test/*
+
+RUN yes | cp /usr/local/bin/python3.7 /usr/bin/python3
+RUN yes | cp /usr/local/bin/pip3.7 /usr/bin/pip3
+# verification
+RUN whereis python3
+
+RUN apt-get install unzip
+RUN export VER='1.5.4' \
+&& wget https://releases.hashicorp.com/packer/${VER}/packer_${VER}_linux_amd64.zip \
+&& unzip packer_${VER}_linux_amd64.zip \
+&& mv packer /usr/local/bin   
+
+# verification
+RUN whereis python3
+
+RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools 
+RUN python3 -m pip install wheel
+RUN python3 -m pip install awscli
+
+# verification
+RUN whereis python3
+
+WORKDIR /usr/src
+RUN wget https://download.oracle.com/otn_software/linux/instantclient/193000/instantclient-basic-linux.x64-19.3.0.0.0dbru.zip
+RUN unzip  instantclient-basic-linux.x64-19.3.0.0.0dbru.zip
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ENV LD_LIBRARY_PATH=/usr/src/instantclient_19_3
+
+RUN apt search mysql-client
+# RUN echo "deb http://cz.archive.ubuntu.com/ubuntu eoan main universe" >> /etc/apt/sources.list 
+# RUN apt-get update --fix-missing 
+RUN apt-get install -y --no-install-recommends mysql-client libmysqlclient-dev
+
+
+RUN which python3
+RUN whereis python3
+RUN python3 -m pip install twine 
+RUN python3 -m pip install pytest 
+RUN python3 -m pip install pytest-cov 
+RUN python3 -m pip install mock 
+RUN python3 -m pip install azure-cli
+RUN az config set extension.use_dynamic_install=yes_without_prompt
+RUN az extension add --name azure-devops
+
+RUN which python3
+RUN whereis python3
+WORKDIR /azp
+COPY ./run.sh .
+RUN chmod +x run.sh
+
+RUN chmod 777 /azp
+RUN apt-get update --fix-missing 
+RUN apt upgrade -y
+RUN apt-get install -y --no-install-recommends \
+    sudo \
+    && groupadd -r dockerg \
+    && adduser dockeru --disabled-password \
+    && usermod -aG dockerg dockeru \
+    && echo dockeru ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/dockeru \
+    && chmod 0440 /etc/sudoers.d/dockeru
+
+RUN chown -R dockeru:dockerg /home/dockeru
+RUN chown dockeru:dockerg /home/dockeru
+USER dockeru
+
+RUN python3 -V
+CMD ["./run.sh"]

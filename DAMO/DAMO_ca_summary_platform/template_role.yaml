@@ -1,0 +1,205 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Use admin privilege to create this role.
+  Then we can use CICD user to assume this role to run cloudformation stack
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - qa
+      - dev
+      - cert
+      - prod
+
+  UserArn:
+    Type: String
+
+
+Resources:
+  CICDRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'damo-ca-summary-platform-cf-role-${UsedEnviron}'
+      Tags:
+        - Key: AssetID
+          Value: 2703
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+               - cloudformation.amazonaws.com
+              AWS: !Ref "UserArn"
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub 'damo-ca-summary-platform-cf-policy-${UsedEnviron}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DeleteVpcEndpoints
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeVpcEndpoints
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:CreateVpcEndpoint
+                  - cloudfront:GetCloudFrontOriginAccessIdentity
+                  - cloudfront:UpdateCloudFrontOriginAccessIdentity
+                  - cloudfront:CreateCloudFrontOriginAccessIdentity
+                  - cloudfront:GetCloudFrontOriginAccessIdentityConfig
+                  - cloudfront:DeleteCloudFrontOriginAccessIdentity
+                  - acm:RequestCertificate
+                  - route53:ListHostedZones
+                  - lambda:CreateEventSourceMapping
+                  - lambda:GetEventSourceMapping
+                  - lambda:DeleteEventSourceMapping
+                Resource:
+                  - "*"
+
+              - Effect: Allow
+                Action:
+                  - apigateway:UpdateRestApiPolicy
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:DELETE
+                  - apigateway:PATCH
+                  - apigateway:PUT
+                Resource:
+                  - !Sub "arn:aws:apigateway:${AWS::Region}::*"
+
+#              - Effect: Allow
+#                Action:
+#                  - elasticfilesystem:DescribeMountTargets
+#                Resource:
+#                  - !Sub "arn:aws:elasticfilesystem:*:${AWS::AccountId}:file-system/*"
+
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:AttachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  - iam:DeleteServiceLinkedRole
+                  - iam:PassRole
+                  - iam:DeleteRolePolicy
+                  - iam:CreateServiceLinkedRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:getRolePolicy
+                  - iam:ListRoleTags
+                  - iam:TagRole
+                  - iam:UntagRole
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/damo-*"
+
+              - Effect: Allow
+                Action:
+                  - acm:DeleteCertificate
+                  - acm:DescribeCertificate
+                Resource:
+                  - !Sub "arn:aws:acm:*:${AWS::AccountId}:certificate/*"
+
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:CreateStack
+                  - cloudformation:ListChangeSet
+                Resource:
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/damo-backend-vpce/*"
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/*"
+                  - !Sub "arn:aws:cloudformation:*:${AWS::AccountId}:stack/damo-ca-summary-platform*/*"
+
+              - Effect: Allow
+                Action:
+                  - route53:GetHostedZone
+                  - route53:ListResourceRecordSets
+                  - route53:ChangeResourceRecordSets
+                  - route53:GetChange
+                Resource:
+                  - arn:aws:route53:::hostedzone/*
+                  - arn:aws:route53:::change/*
+
+              - Effect: Allow
+                Action:
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:GetFunction
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:ListTags
+                  - lambda:UntagResource
+                  - lambda:UpdateFunctionCode
+                  - lambda:DeleteFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:CreateFunction
+                  - lambda:TagResource
+                  - lambda:PutFunctionConcurrency
+                  - lambda:DeleteFunctionConcurrency
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:damo-ca-summary-platform*"
+
+
+              - Effect: Allow
+                Action:
+                  - sqs:SetQueueAttributes
+                  - sqs:GetQueueAttributes
+                  - sqs:DeleteQueue
+                  - sqs:CreateQueue
+                Resource: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*'
+
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketPolicyStatus
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketNotification
+                  - s3:CreateBucket
+                  - s3:ListBucket
+                  - s3:PutBucketCORS
+                  - s3:DeleteBucketPolicy
+                  - s3:DeleteBucket
+                  - s3:GetBucketPolicy
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource:
+                  - arn:aws:s3:::damo-ca-summary-platform*
+
+              - Effect: Allow
+                Action:
+                  - cloudfront:TagResource
+                  - cloudfront:UntagResourc
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:CreateDistribution
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:GetDistribution
+                  - cloudfront:ListTagsForResource
+                  - cloudfront:CreateFunction
+                  - cloudfront:DeleteFunction
+                  - cloudfront:UpdateFunction
+                  - cloudfront:DescribeFunction
+                  - cloudfront:PublishFunction
+
+                Resource:
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/*"
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:function/*"
+
+
+
+
+Outputs:
+  Role:
+    Description: The ARN of the role
+    Value: !GetAtt CICDRole.Arn

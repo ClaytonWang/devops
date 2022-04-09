@@ -1,0 +1,77 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+variables:  
+  RepoName: 'devops'
+  ProjectName: 'common_ubuntu_python'
+  
+trigger: none
+stages:
+  - stage: online_image
+    variables:
+      - group: aicat-common-variables
+    displayName: Build online image
+    jobs:  
+    - job: Build
+      displayName: Build
+      pool:
+        name: 'dev-cluster'
+
+      steps:
+      - checkout: self
+        displayName: Checkout self
+        path: $(RepoName)
+        clean: true  
+      - bash: |
+          docker build --compress -t $(ProjectName):$(Build.BuildNumber) \
+          --build-arg branch=$(git name-rev --name-only HEAD|sed "s#remotes/origin/##g") \
+          --build-arg commit_id=$(Build.SourceVersion) \
+          --build-arg git_hash=$(git rev-parse --short HEAD) \
+          --build-arg build_number=$(Build.BuildNumber) \
+          --build-arg build_datetime="$(date '+%Y-%m-%d %H:%M:%S')" \
+          -f ./Dockerfile .
+        displayName: 'build image' 
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)/devops/Common/$(ProjectName)
+
+      - script: |
+          export containerid=$(docker run --detach $(ProjectName):$(Build.BuildNumber) bash -c "sleep infinity;");
+          echo "--containerid: $containerid-----------"
+          docker exec $containerid bash -c \
+          "sudo python3.7 -m pip install --pre --extra-index https://pypi.anaconda.org/scipy-wheels-nightly/simple cyclonedx-bom; \
+          sudo python3.7 -m pip freeze > /home/dockeru/temp.txt; \
+          sudo cyclonedx-py -i /home/dockeru/temp.txt -o '/home/dockeru/bom.xml'; \
+          ls -l /home/dockeru";          
+          echo "--docker cp \"${containerid}\":/home/dockeru/bom.xml ./-------"
+          docker cp "${containerid}":/home/dockeru/bom.xml ./
+          echo "------local files:-------"
+          ls -l ./
+          cat $(Agent.BuildDirectory)/devops/bom.xml
+          docker stop $containerid
+          docker rm $containerid
+        displayName: 'generate BOM'
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)/devops
+        
+      - task: upload-bom-dtrack-task@1
+        enabled: true
+        inputs:
+          bomFilePath: '$(Agent.BuildDirectory)/devops/bom.xml'
+          dtrackProjId: '7c086bb8-a39f-4d21-b3f7-15bdb3039a01'
+          dtrackAPIKey: '$(dtrackAPIKey)'
+          dtrackURI: 'https://dependency-track.infosec.lexisnexis.com/'
+
+      - bash: |          
+          export AWS_ACCESS_KEY_ID=$(dev.AWS_ACCESS_KEY_ID)
+          export AWS_SECRET_ACCESS_KEY=$(dev.AWS_SECRET_ACCESS_KEY)
+          aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com
+          docker tag $(ProjectName):$(Build.BuildNumber) 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/$(ProjectName):$(Build.BuildNumber)
+          docker push 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/$(ProjectName):$(Build.BuildNumber)
+        displayName: 'push image' 
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)/devops/Common/$(ProjectName)
+      - task: Twistlock.twistcli-build-release-task.custom-build-release-task.twistcli-scan@1
+        displayName: 'Twistlock scan'
+        inputs:
+          twistlockService: twistlock.aicat.me
+          artifact: '$(ProjectName):$(Build.BuildNumber)'
+        continueOnError: false
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/t_cicd'))   

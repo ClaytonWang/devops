@@ -1,0 +1,49 @@
+steps:
+- bash: |
+    pwd
+    echo 'ls----------'
+    ls
+  displayName: 'echo ls' 
+  enabled: true
+  workingDirectory: $(Agent.BuildDirectory)/main
+
+- task: Npm@1
+  displayName: 'npm install'
+  inputs:
+    workingDir: $(Agent.BuildDirectory)/main
+    verbose: false
+
+  
+- task: Npm@1
+  displayName: 'npm run build'
+  inputs:
+    command: custom
+    workingDir: $(Agent.BuildDirectory)/main
+    verbose: false
+    customCommand: 'run build'
+
+- bash: 'docker build -t $(ProjectName):$(Build.BuildNumber) -f ./cli/Dockerfile .'
+  displayName: 'build image' 
+  enabled: true
+  workingDirectory: $(Agent.BuildDirectory)/main
+
+- task: Twistlock.twistcli-build-release-task.custom-build-release-task.twistcli-scan@1
+  displayName: 'Twistlock twistcli scan'
+  inputs:
+    twistlockService: twistlock.aicat.me
+    artifact: '$(ProjectName):$(Build.BuildNumber)'
+  continueOnError: true
+  enabled: true        
+
+- task: AmazonWebServices.aws-vsts-tools.ECRPushImage.ECRPushImage@1
+  displayName: 'Push Image dev'
+  enabled: true
+  inputs:
+    awsCredentials: 'cicduser-dev'
+    regionName: 'ap-southeast-1'
+    sourceImageName: '$(ProjectName)'
+    sourceImageTag: '$(Build.BuildNumber)'
+    repositoryName: '$(ProjectName)'
+    pushTag: '$(Build.BuildNumber)'
+    autoCreateRepository: true  
+

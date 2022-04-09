@@ -1,0 +1,23 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  CloudFormation Template to create S3 bucket template
+
+Parameters:
+  S3BucketName:
+    Type: String
+Resources:
+  CFTemplateS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags: 
+        - Key: AssetID
+          Value: 2476
+      VersioningConfiguration: 
+        Status: Enabled

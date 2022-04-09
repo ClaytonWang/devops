@@ -1,0 +1,51 @@
+{
+    "variables": {
+        "aws_access_key": "{{env `AWS_ACCESS_KEY_ID`}}",
+		"aws_secret_key": "{{env `AWS_SECRET_ACCESS_KEY`}}",
+        "aws_default_region":"{{ env `AWS_DEFAULT_REGIOn` }}",
+        "base_ami_id": null
+    },
+    "builders":[{
+        "type": "amazon-ebs",
+        "source_ami": "{{user `base_ami_id`}}",
+        "security_group_id":"sg-03d294231c1b99316",
+        "instance_type": "t2.medium",
+        "associate_public_ip_address": false,
+        "subnet_id": "subnet-09d9e4fc315254db0",
+        "ssh_username": "ec2-user",
+        "ami_name": "DAMO-API-dev-{{timestamp}}",
+        "ssh_pty": true,
+        "run_tags":{
+            "Name": "DAMO API Packer Builder {{timestamp}}"
+        },
+        "tags": {
+            "Name": "DAMO API Image {{timestamp}}"
+        }
+    }],
+    "provisioners":[
+        {
+            "type":"file",
+            "source": "../damo_rest_api.tar",
+            "destination": "/tmp/damo_rest_api.tar"
+        },{
+            "type":"file",
+            "source": "scripts/awslogs.conf",
+            "destination": "/tmp/awslogs.conf"
+        },{
+            "type":"file",
+            "source": "scripts/awscli.conf",
+            "destination": "/tmp/awscli.conf"
+        },
+        {
+            "environment_vars": [
+                "AWS_ACCESS_KEY_ID={{ user `aws_access_key` }}",
+                "AWS_SECRET_ACCESS_KEY={{ user `aws_secret_key` }}",
+                "AWS_DEFAULT_REGION={{ user `aws_default_region` }}"
+            ],
+            "type": "shell",
+            "script": "scripts/build.sh",
+            "remote_folder": "/home/ec2-user",
+            "execute_command": "sudo -E {{ .Vars }} bash -e {{ .Path }}"
+        }
+    ]
+}

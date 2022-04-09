@@ -1,0 +1,34 @@
+[
+    {
+        "ParameterKey": "ACMCertificateARN",
+        "ParameterValue": "arn:aws:acm:us-east-1:206710830665:certificate/8d0cb4af-7ce0-4979-88f5-6487c3a15702"
+    },
+    {
+        "ParameterKey": "BakedImageId",
+        "ParameterValue": "ami-08d0abd96179af977"
+    },
+    {
+        "ParameterKey": "DAMORESTAPIImageId",
+        "ParameterValue": "206710830665.dkr.ecr.us-east-1.amazonaws.com/damo_rest_api:$(Build.BUILDNUMBER)"
+    },
+    {
+        "ParameterKey": "ENV",
+        "ParameterValue": "cert"
+    },
+    {
+        "ParameterKey": "PrivateSubnetId",
+        "ParameterValue": "subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc"
+    },
+    {
+        "ParameterKey": "PublicSubnetId",
+        "ParameterValue": "subnet-0a36ff367d38f22f3,subnet-0c49579c0975ebb6d"
+    },
+    {
+        "ParameterKey": "SecurityGroupIDs",
+        "ParameterValue": "sg-073570b817287fac4"
+    },
+    {
+        "ParameterKey": "VpcId",
+        "ParameterValue": "vpc-055df18b21b070966"
+    }
+]

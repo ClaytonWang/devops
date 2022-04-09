@@ -1,0 +1,129 @@
+Resources:
+    EventRuleEcsTaskStateChange:
+        Type: 'AWS::Events::Rule'
+        Properties:
+            Description: ATOM-Cluster instance/task Sate change
+            Name: atom-ecs-task-state-change-prod
+            EventPattern:
+                detail-type: # https://docs.aws.amazon.com/AmazonECS/latest/userguide/ecs_cwet2.html
+                    - "ECS Task State Change"
+                detail: 
+                    clusterArn: 
+                        -   arn:aws:ecs:us-east-1:206710830665:cluster/ATOM-Cluster-prod
+                    lastStatus: 
+                        -   "STOPPED"
+                source:
+                    - aws.ecs
+            State: ENABLED
+            Targets:
+                -   Arn: 'arn:aws:sns:us-east-1:206710830665:history_error_prod'
+                    Id: "EventRuleEcsTaskStateChange-t1"
+                    InputTransformer:
+                        InputPathsMap:
+                          eventtime: $.time
+                          region: $.region
+                          cluster: $.detail.clusterArn
+                          group: $.detail.group
+                          createtime: $.detail.createdAt
+                          stoppedReason: $.detail.stoppedReason
+                        # https://stackoverflow.com/questions/52050539/cloudformation-cloudwatch-inputtemplate-formating/52290948
+                        # cloudformation+cloudwatch wants a string of a double-quoted string
+                        # yaml+cloudformation fails to parse:
+                        # * plain flow scalers
+                        # * double-quoted flow scalars with escaped double-quotes
+                        # * any value with newlines in the string content itself
+                        # therefore for multiple lines, you must create a yaml string of multiple double-quoted string lines containing no newlines
+                        # and the output of that will be literally multiple lines of double-quoted string lines
+                        InputTemplate: |
+                          "<stoppedReason> -- Task terminated"
+                          "Stop time: <eventtime>"
+                          "Region: <region>"
+                          "Cluster: <cluster>"
+                          "Grouping: <group>"
+                          "Create time: <createtime>"
+    EventRuleEcsServiceAction:
+        Type: AWS::Events::Rule
+        Properties:
+            Name: atom-ecs-service-action-prod
+            Description: >-
+                ECS service action warn+error events -> notifies SNS topic; created by Cloudformation
+            State: ENABLED
+            Targets:
+                -   Arn: 'arn:aws:sns:us-east-1:206710830665:history_error_prod'
+                    Id: EventRuleEcsServiceAction-t1
+                    InputTransformer:
+                        InputPathsMap:
+                            eventtime: $.time
+                            region: $.region
+                            cluster: $.detail.clusterArn
+                            group: $.resources[0]
+                            createtime: $.detail.createdAt
+                            eventType: $.detail.eventType
+                            eventName: $.detail.eventName
+                        InputTemplate: |
+                            "<eventType> -- <eventName>"
+                            "Stop time:  <eventtime>"
+                            "Region:  <region>"
+                            "Cluster:  <cluster>"
+                            "Grouping:  <group>"
+                            "Create time:  <createtime>"
+            EventPattern:
+                source:
+                    - aws.ecs
+                detail-type: # https://docs.aws.amazon.com/AmazonECS/latest/userguide/ecs_cwe_events.html
+                    - ECS Service Action
+                detail:
+                    clusterArn: 
+                        -   arn:aws:ecs:us-east-1:206710830665:cluster/ATOM-Cluster-prod
+                    eventType:
+                    - WARN
+                    - ERROR
+                    
+    MemoryUtilizationAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmActions: ["arn:aws:sns:us-east-1:206710830665:history_error_prod"]
+            AlarmDescription: >-
+                This alarm will trigger when the blue line goes above the red line for 1 datapoints within 5 minutes.
+            AlarmName: atom-ecs-memory-utilization-prod
+            ComparisonOperator: GreaterThanOrEqualToThreshold
+            Threshold: 70
+            EvaluationPeriods: 1      
+            Metrics:      
+            -   Id: m1
+                ReturnData: True
+                Label: "memory"
+                MetricStat:
+                    Metric:
+                        MetricName: MemoryUtilization
+                        Namespace: AWS/ECS
+                        Dimensions:                          
+                            - Name: ClusterName
+                              Value: ATOM-Cluster-prod
+                    Period: 3600
+                    Stat: Average
+            TreatMissingData: breaching
+    CPUUtilizationAlarm:
+        Type: AWS::CloudWatch::Alarm
+        Properties:
+            AlarmActions: ["arn:aws:sns:us-east-1:206710830665:history_error_prod"]
+            AlarmDescription: >-
+                This alarm will trigger when the blue line goes above the red line for 1 datapoints within 5 minutes.
+            AlarmName: atom-ecs-cpu-utilization-prod
+            ComparisonOperator: GreaterThanOrEqualToThreshold
+            Threshold: 70
+            EvaluationPeriods: 1      
+            Metrics:      
+            -   Id: m1
+                ReturnData: True
+                Label: "cpu"
+                MetricStat:
+                    Metric:
+                        MetricName: CPUUtilization
+                        Namespace: AWS/ECS
+                        Dimensions:                          
+                            - Name: ClusterName
+                              Value: ATOM-Cluster-prod
+                    Period: 3600
+                    Stat: Average
+            TreatMissingData: breaching

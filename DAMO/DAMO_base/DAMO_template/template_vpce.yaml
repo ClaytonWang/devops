@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Stack to setup backend VPC endpoint"
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - cert
+      - qa
+      - dev
+
+Mappings:
+
+  VpcIdMap:
+    dev:
+      value: vpc-07ae063405f3dad33
+    qa:
+      value: vpc-07ae063405f3dad33
+    cert:
+      value: vpc-055df18b21b070966
+    prod:
+      value: vpc-055df18b21b070966
+
+  SecurityGroupMap:
+    dev:
+      value: sg-03d294231c1b99316,sg-099e3cbd4242867e2,sg-0a0cab2883f265885
+    qa:
+      value: sg-03d294231c1b99316,sg-099e3cbd4242867e2,sg-0a0cab2883f265885
+    cert:
+      value: sg-073570b817287fac4
+    prod:
+      value: sg-073570b817287fac4
+
+  SubnetMap:
+    dev:
+      value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+    qa:
+      value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+    cert:
+      value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc
+    prod:
+      value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc
+
+  ServiceNameMap:
+    dev:
+      value: com.amazonaws.ap-southeast-1.execute-api
+    qa:
+      value: com.amazonaws.ap-southeast-1.execute-api
+    cert:
+      value: com.amazonaws.us-east-1.execute-api
+    prod:
+      value: com.amazonaws.us-east-1.execute-api
+
+
+Resources:
+  DAMOMicroserviceVPCE:
+      Type: AWS::EC2::VPCEndpoint
+      Properties:
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal: '*'
+              Action: '*'
+              Resource: '*'
+        PrivateDnsEnabled: True
+        SecurityGroupIds: !Split
+          - ","
+          - !FindInMap
+            - SecurityGroupMap
+            - !Ref UsedEnviron
+            - value
+        ServiceName: !FindInMap
+          - ServiceNameMap
+          - !Ref UsedEnviron
+          - value
+        SubnetIds: !Split
+          - ","
+          - !FindInMap
+            - SubnetMap
+            - !Ref UsedEnviron
+            - value
+        VpcEndpointType: Interface
+        VpcId: !FindInMap
+          - VpcIdMap
+          - !Ref UsedEnviron
+          - value
+
+
+Outputs:
+  VpcEndpointId:
+    Description: The ID of the VPC EndpointId
+    Value: !Ref DAMOMicroserviceVPCE

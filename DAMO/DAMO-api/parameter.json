@@ -1,0 +1,18 @@
+[
+    {
+        "ParameterKey": "ENV",
+        "ParameterValue": "$env"
+    },
+    {
+        "ParameterKey": "CMD",
+        "ParameterValue": "/bin/bash,-c, python3 -m online_main"
+    },
+    {
+        "ParameterKey": "DockerImageId",
+        "ParameterValue": "$imageid"
+    },
+    {
+        "ParameterKey": "MemoryReservation",
+        "ParameterValue": "700"
+    }
+]

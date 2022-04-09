@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  TeamName:
+    Type: String
+    Default: ATOM
+  ProjectName:
+    Type: String
+    Default: HistoryRetriever
+  ENV:
+    Description: Specify for differnt environments in the same account
+    Type: String
+    Default: dev   
+  CONSOLELOG:
+    Description: Specify for differnt environments in the same account
+    Type: String
+    Default: true
+  CMD:
+    Description: Docker image id of Project from ECR
+    Type: String
+    Default: while true;do echo 'sleeping ...';sleep 3;done;
+  MemoryReservation:
+    Description: Docker container reserved memory. Here is the lower limit.
+    Type: String
+    Default: 1000
+  DockerImageId:
+    Description: Docker image id of Project from ECR
+    Type: String
+    Default: 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/history_web_api:20200401.20
+Mappings:
+  SecurityGroupMap:
+    dev:
+      value: sg-03d294231c1b99316
+    qa:
+      value: sg-03d294231c1b99316
+    cert:
+      value: sg-073570b817287fac4
+    prod:
+      value: sg-073570b817287fac4
+  SubnetMap:
+    dev:
+      value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+    qa:
+      value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+    cert:
+      value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc
+    prod:
+      value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc  
+Resources:  
+  CloudwatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['-', [ATOM, !Ref 'AWS::StackName']]
+      RetentionInDays: 365
+  taskdefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Join ['-', [ATOM,!Ref 'AWS::StackName']]
+      ExecutionRoleArn: !Ref TaskRole
+      TaskRoleArn: !Ref TaskRole      
+      # NetworkMode: 'host'
+      # Cpu: "1024"
+      # Memory: "2048"
+      ContainerDefinitions:
+      - Name: !Join ['-', [ATOM,!Ref 'AWS::StackName']]
+        Command: !Split
+        - ","
+        - !Ref 'CMD'
+        # Command:
+        #   - '/usr/local/bin/celery  multi start  worker -A celery_app -l info  -Q  atom-history_retriever-celery_default_queue-$ENV.fifo -c10'
+        Essential: 'true'
+        Image: !Ref DockerImageId
+        MemoryReservation: '800'
+        PortMappings:
+          - ContainerPort: 5000
+            HostPort: 0
+            Protocol: "tcp"   
+        Environment:
+          - Name: 'ENV'
+            Value: !Ref 'ENV'
+          - Name: 'CONSOLE_LOG'
+            Value: !Ref 'CONSOLELOG'        
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: 'worker'   
+  service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: 'ATOM-Cluster'      
+      DesiredCount: '1'      
+      TaskDefinition: !Ref 'taskdefinition'
+      
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+            - ecs.amazonaws.com
+            - ecs-tasks.amazonaws.com
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: !Join ['-', [ATOM,!Ref 'AWS::StackName']]
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ssm:GetParameters
+            Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ATOM/${ENV}/web/*'
+          - Effect: Allow
+            Action:
+            - "ecr:GetAuthorizationToken"
+            - "ecr:BatchCheckLayerAvailability"
+            - "ecr:BatchGetImage"
+            - "ecr:GetDownloadUrlForLayer"
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - "sqs:ListQueues"
+            - "sqs:GetQueueUrl"
+            - "sqs:SendMessageBatch"
+            - "sqs:PurgeQueue"
+            - "sqs:ReceiveMessage"
+            - "sqs:DeleteMessage"
+            - "sqs:SendMessage"
+            - "sqs:GetQueueAttributes"
+            - "s3:*Object"
+            - "s3:ListBucket"
+            - "ses:*"
+            Resource: "*"  

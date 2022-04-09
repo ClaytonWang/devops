@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  TeamName:
+    Type: String
+    Default: DAMO  
+  ENV:
+    Description: Specify for differnt environments in the same account
+    Type: String
+    Default: dev   
+  HardenAMI:
+    Description: HardenAMI from Rets
+    Type: String
+    Default: ami-001ef37908234f1bc  
+Mappings:
+  ClusterNameMap:
+    dev:
+      value: DAMO-Cluster
+    qa:
+      value: DAMO-Cluster
+    cert:
+      value: DAMO-Cluster-cert
+    prod:
+      value: DAMO-Cluster-prod
+  SecurityGroupMap:
+    dev:
+      value: sg-03d294231c1b99316
+    qa:
+      value: sg-03d294231c1b99316
+    cert:
+      value: sg-073570b817287fac4
+    prod:
+      value: sg-073570b817287fac4
+  SubnetMap:
+    dev:
+      value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+    qa:
+      value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+    cert:
+      value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc
+    prod:
+      value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc
+  ACMCertificateARN:
+    dev: 
+      value: arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc
+    qa: 
+      value: arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc
+    cert:
+      value: arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc
+    prod:
+      value: arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !FindInMap
+        - ClusterNameMap
+        - !Ref ENV
+        - value
+      Tags:         
+      - Key: 'AssetID'
+        Value: '2703'
+      - Key: 'AssetName'
+        Value: 'DAMO'
+      - Key: 'AssetProgram'
+        Value: 'New Lexis - Content Fabrication Systems'
+      - Key: 'AssetPurpose'
+        Value: ' APAC AI Content Automation is an AI tool for content Editors in US.'
+      - Key: 'AssetSchedule'
+        Value: 'FALSE'
+      - Key: 'AssetGroup'
+        Value: !Ref 'AWS::StackName'
+      - Key: 'Name'
+        Value: !Ref 'AWS::StackName'
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Split
+      - ","
+      - !FindInMap
+        - SubnetMap
+        - !Ref ENV
+        - value  
+      LaunchConfigurationName: !Ref 'InstanceLaunchConfiguration'
+      MinSize: '2'
+      MaxSize: '30'
+      Tags:
+      - Key: 'JoinDomain'
+        Value: 'TRUE'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetID'
+        Value: '2703'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetName'
+        Value: 'DAMO'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetProgram'
+        Value: 'New Lexis - Content Fabrication Systems'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetPurpose'
+        Value: ' APAC AI Content Automation is an AI tool for content Editors in US.'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetSchedule'
+        Value: 'FALSE'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetGroup'
+        Value: !Ref 'AWS::StackName'
+        PropagateAtLaunch: "true"
+      - Key: 'Name'
+        Value: !Ref 'AWS::StackName'
+        PropagateAtLaunch: "true"
+      
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: '2'
+        MinInstancesInService: '1'
+        PauseTime: PT20M        
+        WaitOnResourceSignals: true
+
+  InstanceLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !Ref HardenAMI
+      SecurityGroups: !Split
+      - ","
+      - !FindInMap
+        - SecurityGroupMap
+        - !Ref ENV
+        - value
+      InstanceType: 'm5.xlarge'
+      IamInstanceProfile: !Ref 'EC2InstanceProfile'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+
+          mkdir -p /etc/ecs
+          touch /etc/ecs/ecs.config
+          cat <<'EOF' >>/etc/ecs/ecs.config
+          ECS_CLUSTER=${ECSCluster}
+          ECS_INSTANCE_ATTRIBUTES={"purpose": "infra"}
+          EOF
+          sudo yum install -y amazon-linux-extras
+          amazon-linux-extras disable docker
+          amazon-linux-extras install -y ecs
+          systemctl enable --now --no-block ecs   
+          yum update -y aws-cfn-bootstrap  
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region}
+
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeSize: '300'  
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles: [!Ref 'EC2Role']
+
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ec2.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: 
+            - 'ecs:CreateCluster'
+            - 'ecs:DeregisterContainerInstance'
+            - 'ecs:DiscoverPollEndpoint'
+            - 'ecs:Poll'
+            - 'ecs:RegisterContainerInstance'
+            - 'ecs:StartTelemetrySession'
+            - 'ecs:Submit*'
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            Resource: '*'

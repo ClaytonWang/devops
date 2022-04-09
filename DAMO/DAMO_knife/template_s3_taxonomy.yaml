@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - cert
+      - qa
+      - dev
+
+Mappings:
+  DomainName:
+    dev:
+      value: "*.aicat.me"
+    qa:
+      value: "*.aicat.me"
+    cert:
+      value: "*.lexisnexis.com"
+    prod:
+      value: "*.lexisnexis.com"
+
+Resources:
+  TaxonomyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketName: !Sub 'damo-knife-taxonomy-${UsedEnviron}'
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+            AllowedOrigins:
+              - !FindInMap
+                - DomainName
+                - !Ref UsedEnviron
+                - value
+            MaxAge: 3000
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+Outputs:
+  TaxonomyS3Bucket:
+    Description: The ARN of the taxonomy S3
+    Value:
+      Fn::Join:
+        - ""
+        - - "s3://"
+          - Ref: "TaxonomyS3Bucket"
+
+
+

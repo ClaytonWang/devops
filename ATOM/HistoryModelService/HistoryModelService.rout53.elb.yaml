@@ -1,0 +1,315 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+    TeamName:
+        Type: String
+        Default: ATOM
+    ProjectName:
+        Type: String
+        Default: HistoryModelService    
+    ENV:
+        Description: Specify for differnt environments in the same account
+        Type: String
+        Default: dev
+    
+Mappings:
+    SecurityGroupMap:
+        dev:
+          value: sg-0baebab4732033b56
+        qa:
+          value: sg-0baebab4732033b56
+        cert:
+          value: sg-073570b817287fac4
+        prod:
+          value: sg-073570b817287fac4
+    VPCMap:
+      dev:
+        value: vpc-07ae063405f3dad33
+      qa:
+        value: vpc-07ae063405f3dad33
+      cert:
+        value: vpc-055df18b21b070966
+      prod:
+        value: vpc-055df18b21b070966
+    SubnetMap:
+        dev:
+          value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+        qa:
+          value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+        cert:
+          value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc
+        prod:
+          value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc
+    ACMCertificateARN:
+        dev: 
+          value: arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc
+        qa: 
+          value: arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc
+        cert:
+          value: arn:aws:acm:us-east-1:206710830665:certificate/8d0cb4af-7ce0-4979-88f5-6487c3a15702
+        prod:
+          value: arn:aws:acm:us-east-1:206710830665:certificate/8d0cb4af-7ce0-4979-88f5-6487c3a15702
+Resources:    
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-${ENV}'
+      Scheme: internal
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '120'
+      Subnets: !Split
+      - ","
+      - !FindInMap
+        - SubnetMap
+        - !Ref ENV
+        - value
+      SecurityGroups: !Split
+      - ","
+      - !FindInMap
+        - SecurityGroupMap
+        - !Ref ENV
+        - value
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref 'LoadBalancer'
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref 'TargetGroupAPI'      
+      Port: '443'
+      Protocol: HTTPS
+      Certificates:
+      - CertificateArn: !FindInMap
+        - ACMCertificateARN
+        - !Ref ENV
+        - value
+      SslPolicy: ELBSecurityPolicy-FS-1-2-Res-2019-08
+  ListenerRulePHRASE:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref 'Listener'
+      Actions:
+      - Type: forward
+        TargetGroupArn: !Ref 'TargetGroupPHRASE'
+      Conditions:
+      - Field: path-pattern
+        Values: [/api/phrase/*]      
+      Priority: 2
+  TargetGroupPHRASE:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-PHRASE-${ENV}'
+      HealthCheckIntervalSeconds: 180
+      HealthCheckPath: /api/phrase/index
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: !FindInMap
+      - VPCMap
+      - !Ref ENV
+      - value
+
+  ListenerRuleAPI:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref 'Listener'
+      Actions:
+      - Type: forward
+        TargetGroupArn: !Ref 'TargetGroupAPI'
+      Conditions:
+      - Field: path-pattern
+        Values: [/api/*]      
+      Priority: 9
+  TargetGroupAPI:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-API-${ENV}'
+      HealthCheckIntervalSeconds: 180
+      HealthCheckPath: /api/index
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: !FindInMap
+      - VPCMap
+      - !Ref ENV
+      - value
+  ListenerRuleQUERY:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref 'Listener'
+      Actions:
+      - Type: forward
+        TargetGroupArn: !Ref 'TargetGroupQUERY'
+      Conditions:
+      - Field: path-pattern
+        Values: [/api/query/*]      
+      Priority: 1
+  TargetGroupQUERY:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-QUERY-${ENV}'
+      HealthCheckIntervalSeconds: 180
+      HealthCheckPath: /api/query/index
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: !FindInMap
+      - VPCMap
+      - !Ref ENV
+      - value
+
+  ListenerRuleCase:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref 'Listener'
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref 'TargetGroupCase'
+      Conditions:
+        - Field: path-pattern
+          Values: [/api/case/*]
+      Priority: 3
+  TargetGroupCase:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-CASE-${ENV}'
+      HealthCheckIntervalSeconds: 180
+      HealthCheckPath: /api/case/index
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: !FindInMap
+        - VPCMap
+        - !Ref ENV
+        - value
+
+  ListenerRuleNonDis:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref 'Listener'
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref 'TargetGroupNonDis'
+      Conditions:
+        - Field: path-pattern
+          Values: [/api/nonDispositive/*]
+      Priority: 4
+  TargetGroupNonDis:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-NonDis-${ENV}'
+      HealthCheckIntervalSeconds: 180
+      HealthCheckPath: /api/nonDispositive/index
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: !FindInMap
+        - VPCMap
+        - !Ref ENV
+        - value
+
+  ListenerRuleSummary:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref 'Listener'
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref 'TargetGroupSummary'
+      Conditions:
+        - Field: path-pattern
+          Values: [/api/summary/*]
+      Priority: 5
+  TargetGroupSummary:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-Summary-${ENV}'
+      HealthCheckIntervalSeconds: 180
+      HealthCheckPath: /api/summary/index
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: !FindInMap
+        - VPCMap
+        - !Ref ENV
+        - value
+  ListenerRuleDuplicate:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref 'Listener'
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref 'TargetGroupDuplicate'
+      Conditions:
+        - Field: path-pattern
+          Values: [/api/duplicate/*]
+      Priority: 6
+  TargetGroupDuplicate:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-Duplicate-${ENV}'
+      HealthCheckIntervalSeconds: 180
+      HealthCheckPath: /api/duplicate/index
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 10
+      VpcId: !FindInMap
+        - VPCMap
+        - !Ref ENV
+        - value
+Outputs:
+  TargetGroupPHRASE:
+    Description: TargetGroupPHRASE
+    Value: !Ref 'TargetGroupPHRASE'
+    Export:
+      Name : !Sub '${TeamName}-${ProjectName}-PHRASE-${ENV}'
+  TargetGroupAPI:
+    Description: TargetGroupAPI
+    Value: !Ref 'TargetGroupAPI'
+    Export:
+      Name : !Sub '${TeamName}-${ProjectName}-API-${ENV}'
+  TargetGroupQUERY:
+    Description: TargetGroupQUERY
+    Value: !Ref 'TargetGroupQUERY'
+    Export:
+      Name : !Sub '${TeamName}-${ProjectName}-QUERY-${ENV}'
+  TargetGroupCase:
+    Description: TargetGroupCase
+    Value: !Ref 'TargetGroupCase'
+    Export:
+      Name : !Sub '${TeamName}-${ProjectName}-CASE-${ENV}'
+  TargetGroupNonDis:
+    Description: TargetGroupNonDis
+    Value: !Ref 'TargetGroupNonDis'
+    Export:
+      Name : !Sub '${TeamName}-${ProjectName}-NonDis-${ENV}'
+  TargetGroupSummary:
+    Description: TargetGroupSummary
+    Value: !Ref 'TargetGroupSummary'
+    Export:
+      Name : !Sub '${TeamName}-${ProjectName}-Summary-${ENV}'
+  TargetGroupDuplicate:
+    Description: TargetGroupDuplicate
+    Value: !Ref 'TargetGroupDuplicate'
+    Export:
+      Name : !Sub '${TeamName}-${ProjectName}-DUPLICATE-${ENV}'

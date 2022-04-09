@@ -1,0 +1,51 @@
+[
+    
+    {
+        "ParameterKey": "TeamName",
+        "ParameterValue": "ATOM"
+    },
+    {
+        "ParameterKey": "ProjectName",
+        "ParameterValue": "HistoryWebAPI"
+    },
+    {
+        "ParameterKey": "ENV",
+        "ParameterValue": "prod"
+    },
+    {
+        "ParameterKey": "VpcId",
+        "ParameterValue": "vpc-055df18b21b070966"
+    },
+    {
+        "ParameterKey": "SubnetId",
+        "ParameterValue": "subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc"
+    },
+    {
+        "ParameterKey": "SecurityGroupIDs",
+        "ParameterValue": "sg-073570b817287fac4"
+    },
+    {
+        "ParameterKey": "BakedImageId",
+        "ParameterValue": "ami-08d0abd96179af977"
+    },
+    {
+        "ParameterKey": "DesiredCapacity",
+        "ParameterValue": "1"
+    },
+    {
+        "ParameterKey": "MaxSize",
+        "ParameterValue": "1"
+    },
+    {
+        "ParameterKey": "InstanceType",
+        "ParameterValue": "t3.medium"
+    },
+    {
+        "ParameterKey": "DockerImageId",
+        "ParameterValue": "206710830665.dkr.ecr.us-east-1.amazonaws.com/history_web_api:$(RELEASE.ARTIFACTS._history_web_api.BUILDNUMBER)"
+    },
+    {
+        "ParameterKey": "ACMCertificateARN",
+        "ParameterValue": "arn:aws:acm:us-east-1:206710830665:certificate/8d0cb4af-7ce0-4979-88f5-6487c3a15702"
+    }
+]

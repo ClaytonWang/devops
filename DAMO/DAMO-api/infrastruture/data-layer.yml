@@ -1,0 +1,45 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  CloudFormation template for DAMO API with RDS(Aurora for mysql)
+Parameters:
+  DBClusterIdentifier:
+    AllowedPattern: "[a-zA-Z0-9-]+"
+    ConstraintDescription: must be between 1 to 60 letters, digits, hyphens.
+    MaxLength: '60'
+    MinLength: '1'
+    Type: String
+  InstanceType:
+    Default: db.r4.large
+    Type: String
+  SecurityGroupIDs:
+    Type: CommaDelimitedList
+  SubnetIDs:
+    Type: CommaDelimitedList
+  ENV:
+    Type: String
+    Default: dev
+
+Resources:      
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: CloudFormation managed DB subnet group.
+      SubnetIds: !Ref "SubnetIDs"
+
+  DatabaseCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora
+      DBClusterIdentifier: !Ref "DBClusterIdentifier"
+      EngineMode: serverless
+      EngineVersion: 5.6
+      MasterUsername: !Sub "{{resolve:ssm-secure:/DAMO/${ENV}/restapi/DB_USER_NAME}}"
+      MasterUserPassword: !Sub "{{resolve:ssm-secure:/DAMO/${ENV}/restapi/DB_PASSWORD}}"
+      BackupRetentionPeriod: 7
+      DBSubnetGroupName: !Ref "DatabaseSubnetGroup"
+      VpcSecurityGroupIds: !Ref "SecurityGroupIDs"
+      StorageEncrypted: true
+
+

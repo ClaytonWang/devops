@@ -1,0 +1,88 @@
+Parameters:
+  HardenAMI:
+    Description: HardenAMI from Rets
+    Type: String
+    Default: ami-001ef37908234f1bc  
+Resources:
+  DevCluster:
+    Type: AWS::ECS::Cluster
+    Properties: 
+      ClusterName: 'dev-cluster'
+  DevAutoScalingConfig:
+      Type: AWS::AutoScaling::LaunchConfiguration
+      Properties:
+        ImageId: !Ref HardenAMI
+        SecurityGroups: ['sg-03d294231c1b99316']        
+        InstanceType: 't3.medium'
+        UserData:
+          Fn::Base64: 
+            !Sub |
+              #!/bin/bash -xe              
+              mkdir -p /etc/ecs
+              touch /etc/ecs/ecs.config
+              cat <<'EOF' >> /etc/ecs/ecs.config
+              ECS_CLUSTER=dev-cluster
+              ECS_INSTANCE_ATTRIBUTES={"purpose": "infra"}
+              EOF
+              amazon-linux-extras disable docker
+              amazon-linux-extras install -y ecs
+              systemctl enable --now --no-block ecs
+              yum install -y nfs-utils
+              cd /
+              mkdir /twistlock_console
+              sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport fs-f2e18cb3.efs.ap-southeast-1.amazonaws.com: /twistlock_console
+              sudo mkdir -p /twistlock_console/var/lib/twistlock
+              sudo mkdir -p /twistlock_console/var/lib/twistlock-backup
+              sudo mkdir -p /twistlock_console/var/lib/twistlock-config  
+              yum update -y aws-cfn-bootstrap  
+              /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource DevAutoScalingGroup --region ${AWS::Region}        
+              
+
+
+        IamInstanceProfile: 'arn:aws:iam::476985428237:instance-profile/ecsInstanceRole'
+        BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeSize: '500'
+  DevAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties: 
+      AutoScalingGroupName: DevAutoScalingGroup        
+      LaunchConfigurationName: 
+        Ref: 'DevAutoScalingConfig'
+      VPCZoneIdentifier: ['subnet-03dafe4a903bf77f3','subnet-09d9e4fc315254db0']      
+      MaxSize: 5
+      MinSize: 3  
+      Tags:
+      - Key: 'JoinDomain'
+        Value: 'TRUE'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetID'
+        Value: '2476'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetName'
+        Value: 'APAC AI Content Automation'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetProgram'
+        Value: 'New Lexis - Content Fabrication Systems'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetPurpose'
+        Value: ' APAC AI Content Automation is an AI tool for content Editors in US.'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetSchedule'
+        Value: 'FALSE'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetGroup'
+        Value: !Ref 'AWS::StackName'
+        PropagateAtLaunch: "true"
+      - Key: 'Name'
+        Value: !Ref 'AWS::StackName'
+        PropagateAtLaunch: "true"
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: '2'
+        MinInstancesInService: '1'
+        PauseTime: PT20M        
+        WaitOnResourceSignals: true
+      
+        

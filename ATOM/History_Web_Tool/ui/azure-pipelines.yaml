@@ -1,0 +1,93 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+variables:      
+  ProjectName: 'history_web_ui'
+trigger:
+- t_cicd
+- dev
+- release
+
+resources:
+  repositories:
+    - repository: devops  # identifier (A-Z, a-z, 0-9, and underscore)
+      type: git  # see the following "Type" topic
+      name: devops  # repository name (format depends on `type`)
+      ref: refs/heads/t_cicd  # ref name to use; defaults to 'refs/heads/master'
+
+stages:
+  - stage: publish
+    displayName: publish to devops pipeline
+    jobs:  
+    - job: PublishArtifact
+      displayName: Publish Artifact
+      pool:
+        name: 'dev-cluster'
+      steps:      
+      - checkout: self
+        displayName: Checkout self
+        path: main
+        clean: true
+
+      - checkout: devops
+        displayName: Checkout devops
+        path: devops
+        clean: true
+
+      - bash: |
+            '/bin/cp -rf $(Agent.BuildDirectory)/devops/ATOM/History_Web_Tool/ui/*  $(Agent.BuildDirectory)/main/cli'
+        displayName: 'cp cli' 
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)
+
+      - task: Npm@1
+        displayName: 'npm install'
+        inputs:
+          workingDir: $(Agent.BuildDirectory)/main
+          verbose: false
+      
+        
+      - task: Npm@1
+        displayName: 'npm run build'
+        inputs:
+          command: custom
+          workingDir: $(Agent.BuildDirectory)/main
+          verbose: false
+          customCommand: 'run build'
+      
+      - bash: 'docker build -t $(ProjectName):$(Build.BuildNumber) -f ./cli/Dockerfile .'
+        displayName: 'build image' 
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)/main
+      
+      - task: Twistlock.twistcli-build-release-task.custom-build-release-task.twistcli-scan@1
+        displayName: 'Twistlock twistcli scan'
+        inputs:
+          twistlockService: twistlock.aicat.me
+          artifact: '$(ProjectName):$(Build.BuildNumber)'
+        continueOnError: true
+        enabled: true        
+      
+      - task: AmazonWebServices.aws-vsts-tools.ECRPushImage.ECRPushImage@1
+        displayName: 'Push Image dev'
+        enabled: true
+        inputs:
+          awsCredentials: 'cicduser-dev'
+          regionName: 'ap-southeast-1'
+          sourceImageName: '$(ProjectName)'
+          sourceImageTag: '$(Build.BuildNumber)'
+          repositoryName: '$(ProjectName)'
+          pushTag: '$(Build.BuildNumber)'
+          autoCreateRepository: true  
+      
+      - task: AmazonWebServices.aws-vsts-tools.ECRPushImage.ECRPushImage@1
+        displayName: 'Push Image prod'
+        enabled: true
+        inputs:
+          awsCredentials: 'cicd_user_prod.20200427'
+          regionName: 'us-east-1'
+          sourceImageName: '$(ProjectName)'
+          sourceImageTag: '$(Build.BuildNumber)'
+          repositoryName: '$(ProjectName)'
+          pushTag: '$(Build.BuildNumber)'
+          autoCreateRepository: true  
+      
+      

@@ -1,0 +1,2 @@
+-i https://azure-feed:snym54gqoxdanlritavsqpngharg573rzb6k3gs7k433xmezngza@tfs-glo-apac.pkgs.visualstudio.com/_packaging/azure-feed/pypi/simple/ 
+etl-core==3.0.20

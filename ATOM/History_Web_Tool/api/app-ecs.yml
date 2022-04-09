@@ -1,0 +1,379 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  TeamName:
+    Type: String
+    Default: ATOM
+  ProjectName:
+    Type: String
+    Default: HistoryWebAPI
+  ENV:
+    Description: Specify for differnt environments in the same account
+    Type: String
+    Default: dev
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Select a VPC that allows instances access to the Internet.
+    Default: vpc-07ae063405f3dad33
+  SubnetId:
+    Type: CommaDelimitedList
+    Description: Select at two subnets in your selected VPC.
+    Default: subnet-09d9e4fc315254db0,subnet-03dafe4a903bf77f3
+  DesiredCapacity:
+    Type: Number
+    Default: '2'
+    Description: Number of instances to launch in your ECS cluster.
+  MaxSize:
+    Type: Number
+    Default: '2'
+    Description: Maximum number of instances that can be launched in your ECS cluster.
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: m5.2xlarge
+    AllowedValues: [t2.micro, t2.small, t3.medium, t2.large, m3.medium, m3.large,
+      m3.xlarge, m3.2xlarge, m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge,
+      c4.large, c4.xlarge, c4.2xlarge, c4.4xlarge, c4.8xlarge, c3.large, c3.xlarge,
+      c3.2xlarge, c3.4xlarge, c3.8xlarge, r3.large, r3.xlarge, r3.2xlarge, r3.4xlarge,
+      r3.8xlarge, i2.xlarge, i2.2xlarge, i2.4xlarge, i2.8xlarge, m5.2xlarge]
+    ConstraintDescription: Please choose a valid instance type.
+  DockerImageId:
+    Description: Docker image id of Project from ECR
+    Type: String
+    Default: 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/history_web_api:20200401.20
+  BakedImageId:
+    Description: baked AMI for instances
+    Type: String 
+    Default: ami-001ef37908234f1bc
+  SecurityGroupIDs:
+    Type: String
+    Default: sg-03d294231c1b99316
+  ACMCertificateARN:
+    Type: String
+    Default: arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+  EcsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Security Group
+      VpcId: !Ref 'VpcId'
+  EcsSecurityGroupALBports:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref 'EcsSecurityGroup'
+      IpProtocol: tcp
+      FromPort: '31000'
+      ToPort: '61000'
+      SourceSecurityGroupId: !Ref 'EcsSecurityGroup'
+  CloudwatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['-', [ECSLogGroup, !Ref 'AWS::StackName']]
+      RetentionInDays: 365
+  taskdefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Join ['', [!Ref 'AWS::StackName', -ecs-restapi]]
+      ExecutionRoleArn: !Ref TaskRole
+      TaskRoleArn: !Ref TaskRole
+      ContainerDefinitions:
+      - Name: !Join ['', [!Ref 'AWS::StackName', -ecs-restapi]]
+        Essential: 'true'
+        Image: !Ref DockerImageId
+        Memory: '800'
+        Environment:
+          - Name: 'ENV'
+            Value: !Ref 'ENV'
+        Secrets:
+        - Name: ALLCITE_PW
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/ALLCITE_PW'
+        - Name: ALLCITE_USER
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/ALLCITE_USER'
+        - Name: ATOM_RDS_PW
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/ATOM_RDS_PW'
+        - Name: ATOM_USER
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/ATOM_USER'
+        - Name: AUTOCITE_PW
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/AUTOCITE_PW'
+        - Name: AUTOCITE_USER
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/AUTOCITE_USER'
+        - Name: DATALAKE_API_KEY
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/DATALAKE_API_KEY'
+        - Name: MONGODB_PW
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/MONGODB_PW'
+        - Name: MONGODB_USER
+          ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/MONGODB_USER'
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: !Sub '${ProjectName}'
+        PortMappings:
+        - ContainerPort: 5000
+          HostPort: 0
+          Protocol: 'tcp'
+  ECSALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${TeamName}-${ProjectName}-${ENV}-alb'
+      Scheme: internal
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '120'
+      Subnets: !Ref 'SubnetId'
+      SecurityGroups: 
+      - !Ref 'EcsSecurityGroup'
+      - !Ref 'SecurityGroupIDs'
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: ECSServiceRole
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: !Ref 'ECSTG'
+      LoadBalancerArn: !Ref 'ECSALB'
+      Port: '443'
+      Protocol: HTTPS
+      Certificates:
+      - CertificateArn: !Ref ACMCertificateARN
+      SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+  ECSALBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    DependsOn: ALBListener
+    Properties:
+      Actions:
+      - Type: forward
+        TargetGroupArn: !Ref 'ECSTG'
+      Conditions:
+      - Field: path-pattern
+        Values: [/]
+      ListenerArn: !Ref 'ALBListener'
+      Priority: 1
+  ECSTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: ECSALB
+    Properties:
+      HealthCheckIntervalSeconds: 180
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 120
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref 'VpcId'
+  ECSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref 'SubnetId'
+      LaunchConfigurationName: !Ref 'ContainerInstancesLG'
+      MinSize: '1'
+      MaxSize: !Ref 'MaxSize'
+      DesiredCapacity: !Ref 'DesiredCapacity'
+      Tags:
+      - Key: 'JoinDomain'
+        Value: 'TRUE'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetID'
+        Value: '2476'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetName'
+        Value: 'APAC AI Content Automation'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetProgram'
+        Value: 'New Lexis - Content Fabrication Systems'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetPurpose'
+        Value: ' APAC AI Content Automation is an AI tool for content Editors in US.'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetSchedule'
+        Value: 'FALSE'
+        PropagateAtLaunch: "true"
+      - Key: 'AssetGroup'
+        Value: !Ref 'AWS::StackName'
+        PropagateAtLaunch: "true"
+      - Key: 'Name'
+        Value: !Ref 'AWS::StackName'
+        PropagateAtLaunch: "true"
+      
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: 'true'
+    
+  ContainerInstancesLG:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !Ref BakedImageId
+      SecurityGroups: 
+      - !Ref 'EcsSecurityGroup'
+      - !Ref 'SecurityGroupIDs'
+      InstanceType: !Ref 'InstanceType'
+      IamInstanceProfile: !Ref 'EC2InstanceProfile'
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+
+          mkdir -p /etc/ecs
+          touch /etc/ecs/ecs.config
+          cat <<'EOF' >>/etc/ecs/ecs.config
+          ECS_CLUSTER=${ECSCluster}
+          ECS_INSTANCE_ATTRIBUTES={"purpose": "infra"}
+          EOF
+
+          amazon-linux-extras disable docker
+          amazon-linux-extras install -y ecs
+          systemctl enable --now --no-block ecs         
+          yum install -y awslogs
+          chkconfig awslogs on     
+          
+                    
+          cat <<'EOF' >>/etc/awslogs/awslogs.conf
+          [/var/log/secure]
+          datetime_format = %b %d %H:%M:%S
+          file = /var/log/secure
+          buffer_duration = 5000
+          log_stream_name = {instance_id}
+          initial_position = start_of_file
+          log_group_name = /var/log/secure
+          [/var/ossec/logs/alerts/alerts.json]
+          file = /var/ossec/logs/alerts/alerts.json
+          buffer_duration = 5000
+          log_stream_name = {instance_id}
+          initial_position = start_of_file
+          mode: "000644"
+          owner: "root"
+          group: "root"
+          log_group_name = /var/ossec/logs/alerts/alerts.json
+          [/var/log/cloud-init-output.log]
+          datetime_format = %b %d %H:%M:%S
+          file = /var/log/cloud-init-output.log
+          buffer_duration = 5000
+          log_stream_name = {instance_id}
+          initial_position = start_of_file
+          log_group_name = /var/log/cloud-init-output.log
+          EOF
+          sed -i 's/us-east-1/${AWS::Region}/g' /etc/awslogs/awscli.conf
+
+          aws s3 --region ap-southeast-1 cp s3://damo-ai-data/app/ossec-wazuh-local-binary-installation.tar.gz /tmp/ossec-wazuh-local-binary-installation.tar.gz
+          cd /tmp/
+          tar -xzvf ossec-wazuh-local-binary-installation.tar.gz
+          /tmp/ossec-wazuh/install.sh
+          /bin/cp -f /tmp/ossec-wazuh/ossec.conf /var/ossec/etc/ossec.conf
+          rm -rf /tmp/ossec-wazuh*          
+          aws s3 --region ap-southeast-1 cp s3://damo-ai-data/app/xClientSIOS-1.9.02-1-external.x86_64.rpm /tmp/xClientSIOS-1.9.02-1-external.x86_64.rpm
+          rpm -ivh /tmp/xClientSIOS-1.9.02-1-external.x86_64.rpm
+          rm -rf /tmp/xClientSIOS-1.9.02-1-external.x86_64.rpm          
+          aws s3 --region ap-southeast-1 cp s3://damo-ai-data/app/qualys-cloud-agent.rpm /opt/qualys/qualys-cloud-agent.rpm
+          rpm -ivh /opt/qualys/qualys-cloud-agent.rpm
+          /usr/local/qualys/cloud-agent/bin/qualys-cloud-agent.sh CustomerId=564896bd-efd2-6cde-8182-82e5936636d1 ActivationId=a0734882-b79c-4620-a3bd-85e49ba6a5a7                    
+            
+          sudo systemctl enable amazon-ssm-agent
+          sudo systemctl start amazon-ssm-agent
+          sudo service awslogsd restart
+          yum update -y aws-cfn-bootstrap  
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ContainerInstancesLG --region ${AWS::Region}
+      BlockDeviceMappings:
+        - DeviceName: "/dev/xvda"
+          Ebs:
+            VolumeSize: '500'   
+  service:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListener
+    Properties:
+      Cluster: !Ref 'ECSCluster'
+      DesiredCount: '2'
+      LoadBalancers:
+      - ContainerName: !Join ['', [!Ref 'AWS::StackName', -ecs-restapi]]
+        ContainerPort: '5000'
+        TargetGroupArn: !Ref 'ECSTG'
+      Role: !Ref 'ECSServiceRole'
+      TaskDefinition: !Ref 'taskdefinition'
+  ECSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ecs.amazonaws.com
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ['elasticloadbalancing:DeregisterInstancesFromLoadBalancer', 'elasticloadbalancing:DeregisterTargets',
+              'elasticloadbalancing:Describe*', 'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
+              'elasticloadbalancing:RegisterTargets', 'ec2:Describe*', 'ec2:AuthorizeSecurityGroupIngress']
+            Resource: '*'
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+            - ecs.amazonaws.com
+            - ecs-tasks.amazonaws.com
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: !Join ['-', ['ATOM',!Ref 'AWS::StackName']]
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ssm:GetParameters
+            Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectName}/${ENV}/*'
+          - Effect: Allow
+            Action:
+            - "ecr:GetAuthorizationToken"
+            - "ecr:BatchCheckLayerAvailability"
+            - "ecr:BatchGetImage"
+            - "ecr:GetDownloadUrlForLayer"
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            Resource: "*"
+          - Effect: Allow
+            Action:           
+            - "s3:*Object"
+            - "s3:ListBucket"
+            Resource: "*"
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ec2.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+      Policies:
+      - PolicyName: ecs-service
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: 
+            - 'ecs:CreateCluster'
+            - 'ecs:DeregisterContainerInstance'
+            - 'ecs:DiscoverPollEndpoint'
+            - 'ecs:Poll'
+            - 'ecs:RegisterContainerInstance'
+            - 'ecs:StartTelemetrySession'
+            - 'ecs:Submit*'
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            Resource: '*'
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles: [!Ref 'EC2Role']

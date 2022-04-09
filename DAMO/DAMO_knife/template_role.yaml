@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Use admin privilege to create this role.
+  Then we can use CICD user to assume this role to run cloudformation stack
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - qa
+      - dev
+      - cert
+      - prod
+
+  UserArn:
+    Type: String
+
+
+Resources:
+  CICDRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'damo-knife-cf-role-${UsedEnviron}'
+      Tags:
+        - Key: AssetID
+          Value: 2703
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+               - cloudformation.amazonaws.com
+              AWS: !Ref  UserArn 
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub 'damo-knife-cf-policy-${UsedEnviron}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - cloudfront:GetCloudFrontOriginAccessIdentityConfig
+                  - cloudfront:DeleteCloudFrontOriginAccessIdentity
+                  - cloudfront:GetCloudFrontOriginAccessIdentity
+                  - cloudfront:UpdateCloudFrontOriginAccessIdentity
+                  - cloudfront:CreateCloudFrontOriginAccessIdentity
+                  - ec2:DeleteVpcEndpoints
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeVpcs
+                  - ec2:CreateVpcEndpoint
+                  - ec2:DescribeVpcEndpoints
+                  - ec2:DescribeSubnets
+                  - route53:ListHostedZones
+                  - acm:RequestCertificate
+                Resource:
+                  -  "*"
+
+              - Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:TagResource
+                  - lambda:GetFunctionConfiguration
+                  - lambda:DeleteFunction
+                  - lambda:UpdateFunctionCode
+                  - lambda:UntagResource
+                  - lambda:ListTags
+                  - lambda:GetFunction
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:damo-knife*"
+
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:AttachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  - iam:DeleteServiceLinkedRole
+                  - iam:PassRole
+                  - iam:DeleteRolePolicy
+                  - iam:CreateServiceLinkedRole
+                  - iam:ListRoleTags
+                  - iam:TagRole
+                  - iam:UntagRole
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/damo-*"
+
+              - Effect: Allow
+                Action:
+                  - acm:DeleteCertificate
+                  - acm:DescribeCertificate
+                Resource:
+                  - !Sub "arn:aws:acm:*:${AWS::AccountId}:certificate/*"
+
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:CreateStack
+                  - cloudformation:ListChangeSets
+                  - cloudformation:DescribeStacks
+                Resource:
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/damo-backend-vpce/*"
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/*"
+                  - !Sub "arn:aws:cloudformation:*:${AWS::AccountId}:stack/damo-knife*/*"
+
+              - Effect: Allow
+                Action:
+                  - cloudfront:GetDistribution
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:CreateDistribution
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:TagResource
+                  - cloudfront:UntagResource
+                  - cloudfront:ListTagsForResource
+                Resource:
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/*"
+
+              - Effect: Allow
+                Action:
+                  - route53:GetHostedZone
+                  - route53:ListResourceRecordSets
+                  - route53:ChangeResourceRecordSets
+                  - route53:GetChange
+                Resource:
+                  - arn:aws:route53:::hostedzone/*
+                  - arn:aws:route53:::change/*
+
+              - Effect: Allow
+                Action:
+                  - apigateway:UpdateRestApiPolicy
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:DELETE
+                  - apigateway:PATCH
+                  - apigateway:PUT
+                Resource:
+                  - !Sub "arn:aws:apigateway:${AWS::Region}::*"
+
+              - Effect: Allow 
+                Action:
+                  - s3:DeleteObject
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:GetBucketPolicyStatus
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketPolicy
+                  - s3:CreateBucket
+                  - s3:ListBucket
+                  - s3:PutBucketCORS
+                  - s3:DeleteBucketPolicy
+                  - s3:DeleteBucket
+                  - s3:GetBucketPolicy
+                Resource:
+                  - arn:aws:s3:::damo-knife*
+
+
+
+Outputs:
+  Role:
+    Description: The ARN of the role
+    Value: !GetAtt CICDRole.Arn

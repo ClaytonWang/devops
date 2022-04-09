@@ -1,0 +1,125 @@
+# https://aka.ms/yaml
+
+resources:   
+    repositories:
+    - repository: common
+        type: git
+        name: Contoso/CommonTools
+        endpoint: MyContosoServiceConnection
+    
+    - pipeline: Nginx
+        source: devops
+        trigger: true
+        branches:
+            include:
+            - t_taylor
+            - dev
+            - release        
+#   repositories:
+#   - repository: DAMORESTAPI
+#     type: git
+#     name: APAC-AI/damo_rest_api
+#     ref: refs/heads/dev
+
+# trigger: none
+
+# pool:
+#   name: dev-cluster
+
+# steps:
+# - checkout: self
+#   displayName: Checkout self repo
+
+# - checkout: DAMORESTAPI
+#   displayName: Checkout damo rest api repo
+#   path: damo_rest_api
+#   clean: true
+
+# - bash: |
+#     echo "##vso[task.setvariable variable=RESTAPI_GIT_COMMIT]`git rev-parse --short HEAD`"
+#   workingDirectory: $(Agent.BuildDirectory)/damo_rest_api
+
+# - script: |
+#     cat << EOF >> health_info.json
+#       {
+#         "name":"DAMO REST API",
+#         "version":{
+#           "build_number": "N/A",
+#           "git_hash": "$RESTAPI_GIT_COMMIT",
+#           "build_datetime":"20200302.11:34:00",
+#           "branch":"dev",
+#           "etl-core":"N/A"
+#         },
+#         "ip":"10.181.160.189"
+#       }
+#     EOF
+#   displayName: Generate git commit info 
+#   workingDirectory: $(Agent.BuildDirectory)/damo_rest_api
+
+# - script: cat health_info.json
+#   displayName: Display health info 
+#   workingDirectory: $(Agent.BuildDirectory)/damo_rest_api
+
+# - script: tar -czvf $(Build.SourcesDirectory)/devops/damo_rest_api.tar damo_rest_api
+#   displayName: Packaging source code into tar
+#   workingDirectory: $(Agent.BuildDirectory)
+
+# - script: packer build -var 'base_ami_id=ami-0a90b4403c04ffa18' packer.json  2>&1 | tee output.txt
+#   displayName: Packer build AMI with source code
+#   workingDirectory: $(Build.SourcesDirectory)/devops/DAMO-api
+#   env:
+#     AWS_ACCESS_KEY_ID: $(CICD_USER_ACCESS_KEY_ID)
+#     AWS_SECRET_ACCESS_KEY: $(CICD_USER_SECRET_KEY)
+#     AWS_DEFAULT_REGION: ap-southeast-1
+
+# - script: tail -2 output.txt | head -2 | awk 'match($0, /ami-.*/) { print substr($0, RSTART, RLENGTH) }' > ami_id.txt
+#   displayName: Read AMI ID from packer build
+#   workingDirectory: $(Build.SourcesDirectory)/devops/DAMO-api
+
+# - script: cat ami_id.txt
+#   displayName: Display AMI ID
+#   workingDirectory: $(Build.SourcesDirectory)/devops/DAMO-api
+
+# - script: |
+#     aws cloudformation create-change-set \
+#       --stack-name damo-api-app-layer \
+#       --template-body file://$(Build.SourcesDirectory)/devops/DAMO-api/infrastruture/app-layer.yml \
+#       --parameters \
+#         ParameterKey="EC2AMIID",ParameterValue="`cat ami_id.txt`" \
+#       --tags \
+#         Key="AssetGroup",Value="DAMO dev" \
+#         Key="AssetID",Value="2476" \
+#         Key="AssetName",Value="APAC AI Content Automation" \
+#         Key="AssetProgram",Value="New Lexis - Content Fabrication Systems" \
+#         Key="AssetPurpose",Value="APAC AI Content Automation is an AI tool for content Editors in US." \
+#         Key="AssetSchedule",Value="FALSE" \
+#         Key="JoinDomain",Value="TRUE" \
+#       --change-set-name damo-api-app-dev-change-set \
+#       --capabilities CAPABILITY_NAMED_IAM \
+#       --region ap-southeast-1
+#   displayName: Create CloudFormation stack change set
+#   workingDirectory: $(Build.SourcesDirectory)/devops/DAMO-api
+#   env:
+#     AWS_ACCESS_KEY_ID: $(CICD_USER_ACCESS_KEY_ID)
+#     AWS_SECRET_ACCESS_KEY: $(CICD_USER_SECRET_KEY)
+
+# - script: |
+#     aws cloudformation describe-change-set \
+#       --change-set-name damo-api-app-dev-change-set \
+#       --stack-name damo-api-app-layer \
+#       --region ap-southeast-1
+#   displayName: Describe the change set
+#   env:
+#     AWS_ACCESS_KEY_ID: $(CICD_USER_ACCESS_KEY_ID)
+#     AWS_SECRET_ACCESS_KEY: $(CICD_USER_SECRET_KEY)
+
+# - script: |
+#     sleep 5 && \
+#     aws cloudformation execute-change-set \
+#       --change-set-name damo-api-app-dev-change-set \
+#       --stack-name damo-api-app-layer \
+#       --region ap-southeast-1
+#   displayName: Execute Change set
+#   env:
+#     AWS_ACCESS_KEY_ID: $(CICD_USER_ACCESS_KEY_ID)
+#     AWS_SECRET_ACCESS_KEY: $(CICD_USER_SECRET_KEY)

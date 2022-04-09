@@ -1,0 +1,128 @@
+Parameters:    
+    VpcId:
+        Default: 'vpc-07ae063405f3dad33'
+        Type: AWS::EC2::VPC::Id
+        Description: Select a VPC that allows instances access to the Internet.
+    SubnetId:
+        Default: "subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0"   
+        Type: List<AWS::EC2::Subnet::Id>
+        Description: Select at two subnets in your selected VPC.    
+    DesiredCapacity:
+        Type: Number
+        Default: '1'
+        Description: Number of instances to launch in your ECS cluster.
+    MaxSize:
+        Type: Number
+        Default: '1'
+        Description: Maximum number of instances that can be launched in your ECS cluster.
+Resources:
+    historyMonitorTask: 
+        Type: AWS::ECS::TaskDefinition        
+        Properties:  
+            NetworkMode: "bridge"
+            PlacementConstraints:
+                -
+                    Type: "memberOf"
+                    Expression: "attribute:purpose == infra"
+            ContainerDefinitions: 
+                - 
+                    Name: 'historyMonitor'              
+                    Image: '476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/history_monitor:20200311.1'                 
+                    Essential: "true"
+                    MemoryReservation: "2000" 
+                    Privileged: false                    
+                    PortMappings:
+                        - 
+                            ContainerPort: 5555
+                            HostPort: 8090
+                            Protocol: "tcp"
+                        
+                    Environment:
+                    -
+                        Name: "env"
+                        Value: "dev"
+                    -
+                        Name: "broker"
+                        Value: "redis://atom-qa.nvfhva.0001.apse1.cache.amazonaws.com:6379/1"                    
+                 
+    historyMonitorService: 
+        Type: AWS::ECS::Service
+        DependsOn: historyMonitorALBListener
+        Properties: 
+            Cluster: "dev-cluster"
+            DesiredCount: "1"
+            LoadBalancers:
+                - 
+                    ContainerName: historyMonitor
+                    ContainerPort: '5555'
+                    TargetGroupArn: !Ref 'historyMonitorTG'
+            TaskDefinition: 
+                Ref: "historyMonitorTask"    
+    historyMonitorALBListener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        DependsOn: ECSServiceRole
+        Properties:
+            Certificates: 
+                -
+                    CertificateArn: "arn:aws:acm:ap-southeast-1:476985428237:certificate/d922e15c-9c5d-427e-a97c-9185370f94dc"
+            DefaultActions:
+                - 
+                    Type: forward
+                    TargetGroupArn: !Ref 'historyMonitorTG'
+            LoadBalancerArn: 'arn:aws:elasticloadbalancing:ap-southeast-1:476985428237:loadbalancer/app/historyMonitor/d6c21538d2256cef'
+            Port: '443'
+            Protocol: HTTPS
+            SslPolicy: 'ELBSecurityPolicy-2016-08'
+    historyMonitorECSALBListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        DependsOn: historyMonitorALBListener
+        Properties:
+            Actions:
+                - 
+                    Type: forward
+                    TargetGroupArn: !Ref 'historyMonitorTG'
+            Conditions:
+                - 
+                    Field: path-pattern
+                    Values: [/]
+            ListenerArn: !Ref 'historyMonitorALBListener'
+            Priority: 1
+    historyMonitorTG:
+        Type: AWS::ElasticLoadBalancingV2::TargetGroup
+        Properties:
+            HealthCheckIntervalSeconds: 10
+            HealthCheckPath: /
+            HealthCheckProtocol: HTTP
+            HealthCheckTimeoutSeconds: 5
+            HealthyThresholdCount: 2
+            Name: historyMonitorTG
+            Port: 8090
+            Protocol: HTTP
+            UnhealthyThresholdCount: 2
+            VpcId: !Ref 'VpcId'
+    ECSServiceRole:
+        Type: AWS::IAM::Role
+        Properties:
+            AssumeRolePolicyDocument:
+                Statement:
+                    - 
+                        Effect: Allow
+                        Principal:
+                            Service: [ecs.amazonaws.com]
+                        Action: ['sts:AssumeRole']
+            Path: /
+            Policies:
+                - 
+                    PolicyName: ecs-service
+                    PolicyDocument:
+                        Statement:
+                            -   
+                                Effect: Allow
+                                Action: ['elasticloadbalancing:DeregisterInstancesFromLoadBalancer', 
+                                    'elasticloadbalancing:DeregisterTargets',
+                                    'elasticloadbalancing:Describe*', 
+                                    'elasticloadbalancing:RegisterInstancesWithLoadBalancer',
+                                    'elasticloadbalancing:RegisterTargets', 
+                                    'ec2:Describe*', 
+                                    'ec2:AuthorizeSecurityGroupIngress']
+                                Resource: '*'

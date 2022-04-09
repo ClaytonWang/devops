@@ -1,0 +1,370 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "This stack creates a lambda function to provide the daily Config Remediation report",
+    "Outputs": {},
+    "Parameters": {
+        "MemorySize": {
+            "Description": "The size of memory in MB for lambda function, in multiple of 64, minimum 128, maximum 1536.",
+            "Type": "Number",
+            "Default": "128",
+            "MinValue": "128",
+            "MaxValue": "1536"
+        },
+        "Timeout": {
+            "Description": "The timeout for lambda function stop executing in seconds.",
+            "Type": "Number",
+            "Default": "300",
+            "MinValue": "1"
+        },
+        "LambdaSourceS3Bucket": {
+            "Description": "Name of the bucket containing the Lambda Function Zip",
+            "Type": "String"
+        },
+        "LambdaSourceS3Key": {
+            "Description": "S3 Key to the Lambda Function Zip",
+            "Type": "String"
+        },
+        "LambdaFunctionName": {
+            "Description": "Name of the Lambda Function Zip",
+            "Type": "String",
+            "Default": "AmiJanitor"
+        },
+        "ScheduleExpression": {
+            "Description": "When to run the report.  See http://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html",
+            "Type": "String",
+            "Default": "cron(0 0 * * ? *)"
+        },
+        "Handler": {
+            "Description": "Lambda Handler Method",
+            "Type": "String",
+            "Default": "ami-janitor.lambda_handler"
+        },
+        "AssetGroup": {
+            "Description": "Asset Group",
+            "Type": "String"
+        },
+        "AssetID": {
+            "Description": "Glitz Asset Id - Required for proper access",
+            "Type": "String",
+            "Default": "1626"
+        },
+        "AssetName": {
+            "Description": "Glitz Asset Name",
+            "Type": "String",
+            "Default": "AccountManagement"
+        },
+        "AssetAreaName": {
+            "Description": "Asset Area Name",
+            "Type": "String",
+            "Default": "AmiJanitor"
+        },
+        "Build": {
+            "Description": "Release Unit Build Number",
+            "Type": "String",
+            "Default": "0"
+        },
+        "QualysReportUrl": {
+            "Description": "URL for the Qualys json report",
+            "Type": "String"
+        },
+        "DevUnshareOffset": {
+            "Description": "Number of days after being flagged in Qualys to unshare from dev accounts",
+            "Type": "String",
+            "Default": "0"
+        },
+        "CertUnshareOffset": {
+            "Description": "Number of days after being flagged in Qualys to unshare from cert accounts",
+            "Type": "String",
+            "Default": "0"
+        },
+        "ProdUnshareOffset": {
+            "Description": "Number of days after being flagged in Qualys to unshare from prod accounts",
+            "Type": "String",
+            "Default": "28"
+        },
+        "DevAccountLists": {
+            "Description": "Comma-delimited list of account IDs classified as Dev accounts",
+            "Type": "String",
+            "Default": ""
+        },
+        "CertAccountLists": {
+            "Description": "Comma-delimited list of account IDs classified as Cert accounts",
+            "Type": "String",
+            "Default": ""
+        },
+        "ProdAccountLists": {
+            "Description": "Comma-delimited list of account IDs classified as Prod accounts",
+            "Type": "String",
+            "Default": ""
+        },
+        "MsTeamsWebhook": {
+            "Description": "Webhook to MSTeams Channel for notifications",
+            "Type": "String",
+            "Default": ""
+        }
+    },
+    "Resources": {
+        "CloudMeta": {
+            "Type": "Custom::CloudMetadata",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::Sub": "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:CustomResourceGateway"
+                },
+                "AssetID": {
+                    "Ref": "AssetID"
+                },
+                "AssetGroup": {
+                    "Ref": "AssetGroup"
+                },
+                "AssetAreaName": {
+                    "Ref": "AssetAreaName"
+                },
+                "Version": "2",
+                "LastUpdate": {
+                    "Ref": "Build"
+                }
+            }
+        },
+        "Role": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+                ],
+                "Policies": [
+                    {
+                        "PolicyName": "Policy1",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Sid": "AllowLambdaActions",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2:DescribeImages",
+                                        "ec2:CreateTags",
+                                        "ec2:DeleteTags",
+                                        "ec2:ModifyImageAttribute"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "AssetID",
+                        "Value": {
+                            "Ref": "AssetID"
+                        }
+                    },
+                    {
+                        "Key": "AssetName",
+                        "Value": {
+                            "Ref": "AssetName"
+                        }
+                    },
+                    {
+                        "Key": "AssetAreaName",
+                        "Value": {
+                            "Ref": "AssetAreaName"
+                        }
+                    },
+                    {
+                        "Key": "AssetGroup",
+                        "Value": {
+                            "Ref": "AssetGroup"
+                        }
+                    }
+                ]
+            }
+        },
+        "StableLambdaAlias": {
+            "Type": "AWS::Lambda::Alias",
+            "Properties": {
+                "Description": "Production version",
+                "FunctionName": {
+                    "Ref": "Function"
+                },
+                "FunctionVersion": "$LATEST",
+                "Name": "STABLE"
+            }
+        },
+        "LambdaFunctionLogGroup": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+                "LogGroupName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "/aws/lambda/",
+                            {
+                                "Ref": "Function"
+                            }
+                        ]
+                    ]
+                },
+                "RetentionInDays": "14"
+            }
+        },
+        "Function": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "LambdaSourceS3Bucket"
+                    },
+                    "S3Key": {
+                        "Ref": "LambdaSourceS3Key"
+                    }
+                },
+                "Description": {
+                    "Ref": "LambdaFunctionName"
+                },
+                "Environment": {
+                    "Variables": {
+                        "qualys_report_url": {
+                            "Ref": "QualysReportUrl"
+                        },
+                        "dev_unshare_offset": {
+                            "Ref": "DevUnshareOffset"
+                        },
+                        "cert_unshare_offset": {
+                            "Ref": "CertUnshareOffset"
+                        },
+                        "prod_unshare_offset": {
+                            "Ref": "ProdUnshareOffset"
+                        },
+                        "dev_account_list": {
+                            "Ref": "DevAccountLists"
+                        },
+                        "cert_account_list": {
+                            "Ref": "CertAccountLists"
+                        },
+                        "prod_account_list": {
+                            "Ref": "ProdAccountLists"
+                        },
+                        "MS_TEAMS_WEBHOOK": {
+                            "Ref": "MsTeamsWebhook"
+                        }
+                    }
+                },
+                "FunctionName": {
+                    "Ref": "LambdaFunctionName"
+                },
+                "Handler": {
+                    "Ref": "Handler"
+                },
+                "MemorySize": {
+                    "Ref": "MemorySize"
+                },
+                "Role": {
+                    "Fn::GetAtt": [
+                        "Role",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "python3.7",
+                "Timeout": {
+                    "Ref": "Timeout"
+                },
+                "Tags": [
+                    {
+                        "Key": "AssetID",
+                        "Value": {
+                            "Ref": "AssetID"
+                        }
+                    },
+                    {
+                        "Key": "AssetName",
+                        "Value": {
+                            "Ref": "AssetName"
+                        }
+                    },
+                    {
+                        "Key": "AssetAreaName",
+                        "Value": {
+                            "Ref": "AssetAreaName"
+                        }
+                    },
+                    {
+                        "Key": "AssetGroup",
+                        "Value": {
+                            "Ref": "AssetGroup"
+                        }
+                    }
+                ],
+                "VpcConfig": {
+                    "SecurityGroupIds": [
+                        {
+                            "Fn::GetAtt": [
+                                "CloudMeta",
+                                "vpc.SecurityGroups.SgInternetOut"
+                            ]
+                        }
+                    ],
+                    "SubnetIds": {
+                        "Fn::GetAtt": [
+                            "CloudMeta",
+                            "vpc.PrivateSubnetList"
+                        ]
+                    }
+                }
+            }
+        },
+        "PermissionForEventsToInvokeFunction": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                    "Fn::Sub": "${Function.Arn}:STABLE"
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "events.amazonaws.com",
+                "SourceArn": {
+                    "Fn::GetAtt": [
+                        "ScheduledRule",
+                        "Arn"
+                    ]
+                }
+            }
+        },
+        "ScheduledRule": {
+            "Type": "AWS::Events::Rule",
+            "Properties": {
+                "Description": {
+                    "Fn::Sub": "This function triggers ${LambdaFunctionName}"
+                },
+                "ScheduleExpression": {
+                    "Ref": "ScheduleExpression"
+                },
+                "State": "ENABLED",
+                "Targets": [
+                    {
+                        "Arn": {
+                            "Fn::Sub": "${Function.Arn}:STABLE"
+                        },
+                        "Id": "STABLE"
+                    }
+                ]
+            }
+        }
+    }
+}

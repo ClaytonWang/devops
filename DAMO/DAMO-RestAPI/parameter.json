@@ -1,0 +1,30 @@
+[
+    {
+        "ParameterKey": "TeamName",
+        "ParameterValue": "DAMO"
+    },
+    {
+        "ParameterKey": "ProjectName",
+        "ParameterValue": "$projectName"
+    },
+    {
+        "ParameterKey": "ENV",
+        "ParameterValue": "$env"
+    },
+    {
+        "ParameterKey": "CMD",
+        "ParameterValue": "./cli/run_app.sh"
+    },
+    {
+        "ParameterKey": "Port",
+        "ParameterValue": "5000"
+    },
+    {
+        "ParameterKey": "DesiredCount",
+        "ParameterValue": "3"
+    },
+    {
+        "ParameterKey": "DockerImageId",
+        "ParameterValue": "$imageid"
+    }
+]

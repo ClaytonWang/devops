@@ -1,0 +1,1 @@
+A repository for sharing common devops work. These could be basic cloudformation templates to help a team get started with infrastructure-as-code. These could be basic dockerfile to help a team get started with a hardened docker images.

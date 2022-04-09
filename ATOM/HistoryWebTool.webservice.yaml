@@ -1,0 +1,212 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  TeamName:
+    Type: String
+    Default: ATOM
+  ProjectName:
+    Type: String
+    Default: HistoryWebTool-UI
+  ENV:
+    Description: Specify for differnt environments in the same account
+    Type: String
+    Default: dev   
+  CONSOLELOG:
+    Description: Specify for differnt environments in the same account
+    Type: String
+    Default: true
+  CMD:
+    Description: Docker image id of Project from ECR
+    Type: String
+    Default: while true;do echo 'sleeping ...';sleep 3;done;
+  MemoryReservation:
+    Description: Docker container reserved memory. Here is the lower limit.
+    Type: String
+    Default: 1000
+  DesiredCount:
+    Description: docker container count
+    Type: String
+    Default: 2
+  Port:
+    Description: original port from app
+    Type: String
+    Default: 8080
+  DockerImageId:
+    Description: Docker image id of Project from ECR
+    Type: String
+    Default: 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/history_web_api:20200401.20  
+Mappings:
+  ClusterNameMap:
+    dev:
+      value: ATOM-Cluster
+    qa:
+      value: ATOM-Cluster
+    cert:
+      value: ATOM-Cluster-cert
+    prod:
+      value: ATOM-Cluster-prod
+  SecurityGroupMap:
+    dev:
+      value: sg-03d294231c1b99316
+    qa:
+      value: sg-03d294231c1b99316
+    cert:
+      value: sg-073570b817287fac4
+    prod:
+      value: sg-073570b817287fac4
+  SubnetMap:
+    dev:
+      value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+    qa:
+      value: subnet-03dafe4a903bf77f3,subnet-09d9e4fc315254db0
+    cert:
+      value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc
+    prod:
+      value: subnet-0b0a66b5da5157ed9,subnet-056a9da3e0fb617bc  
+  VPCMap:
+    dev:
+      value: vpc-07ae063405f3dad33
+    qa:
+      value: vpc-07ae063405f3dad33
+    cert:
+      value: vpc-055df18b21b070966
+    prod:
+      value: vpc-055df18b21b070966
+Resources:  
+  CloudwatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['-', [ATOM, !Ref 'AWS::StackName']]
+      RetentionInDays: 365
+  taskdefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Join ['-', [ATOM,!Ref 'AWS::StackName']]
+      ExecutionRoleArn: !Ref TaskRole
+      TaskRoleArn: !Ref TaskRole      
+      # NetworkMode: 'host'
+      # Cpu: "1024"
+      # Memory: "2048"
+      ContainerDefinitions:
+      - Name: !Join ['-', [ATOM,!Ref 'AWS::StackName']]
+        Command: !Split
+        - ","
+        - !Ref 'CMD'
+        # Command:
+        #   - '/usr/local/bin/celery  multi start  worker -A celery_app -l info  -Q  atom-history_retriever-celery_default_queue-$ENV.fifo -c10'
+        Essential: 'true'
+        Image: !Ref DockerImageId
+        MemoryReservation: !Ref 'MemoryReservation'
+        PortMappings:
+          - ContainerPort: !Ref 'Port'  
+            HostPort: 0
+            Protocol: "tcp"   
+        Environment:
+          - Name: 'ENV'
+            Value: !Ref 'ENV'
+          - Name: 'CONSOLE_LOG'
+            Value: !Ref 'CONSOLELOG'     
+        Secrets:   
+          - Name: ALLCITE_PW
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/ALLCITE_PW'
+          - Name: ALLCITE_USER
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/ALLCITE_USER'
+          - Name: ATOM_RDS_PW
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/ATOM_RDS_PW'
+          - Name: ATOM_USER
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/ATOM_USER'
+          - Name: AUTOCITE_PW
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/AUTOCITE_PW'
+          - Name: AUTOCITE_USER
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/AUTOCITE_USER'
+          - Name: DATALAKE_API_KEY
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/DATALAKE_API_KEY'
+          - Name: MONGODB_PW
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/MONGODB_PW'
+          - Name: MONGODB_USER
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/MONGODB_USER'    
+          - Name: TOKEN
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ATOM/${ENV}/TOKEN'   
+          - Name: LDAP_SECRET_KEY
+            ValueFrom: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/LDAP_SECRET_KEY'  
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-group: !Ref 'CloudwatchLogsGroup'
+            awslogs-region: !Ref 'AWS::Region'
+            awslogs-stream-prefix: 'worker'   
+  service:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !FindInMap
+      - ClusterNameMap
+      - !Ref ENV
+      - value     
+      DesiredCount: !Ref 'DesiredCount'  
+      TaskDefinition: !Ref 'taskdefinition'      
+      PlacementStrategies:
+        - 
+          Type: spread
+          Field: "instanceId"
+        - 
+          Type: binpack
+          Field: "cpu"
+        - 
+          Type: binpack
+          Field: "memory"
+      LoadBalancers:
+        - ContainerName:  !Join ['-', [ATOM,!Ref 'AWS::StackName']]
+          ContainerPort: !Ref 'Port'
+          TargetGroupArn: !ImportValue
+            'Fn::Sub': '${TeamName}-${ProjectName}-${ENV}'        
+  
+  TaskRole:
+    Type: AWS::IAM::Role    
+    Properties:
+      Tags:
+      - Key: 'AssetID'
+        Value: '2704'
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: 
+            - ecs.amazonaws.com
+            - ecs-tasks.amazonaws.com
+          Action: ['sts:AssumeRole']
+      Path: /
+      Policies:
+      - PolicyName: !Join ['-', [ATOM,!Ref 'AWS::StackName']]
+        PolicyDocument:
+          Statement:
+          - Effect: Allow
+            Action: ssm:GetParameters
+            Resource: 
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ATOM/${ENV}/*'
+              - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/HistoryWebAPI/${ENV}/*'
+          - Effect: Allow
+            Action:
+            - "ecr:GetAuthorizationToken"
+            - "ecr:BatchCheckLayerAvailability"
+            - "ecr:BatchGetImage"
+            - "ecr:GetDownloadUrlForLayer"
+            - 'logs:CreateLogStream'
+            - 'logs:PutLogEvents'
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - "sqs:ListQueues"
+            - "sqs:GetQueueUrl"
+            - "sqs:SendMessageBatch"
+            - "sqs:PurgeQueue"
+            - "sqs:ReceiveMessage"
+            - "sqs:DeleteMessage"
+            - "sqs:SendMessage"
+            - "sqs:GetQueueAttributes"
+            - "s3:*Object"
+            - "s3:ListBucket"            
+            Resource: "*"  
+          - Effect: Allow
+            Action:
+            - "ses:SendEmail"
+            - "ses:SendRawEmail"
+            Resource: "*" 

@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - qa
+      - dev
+Mappings:
+  DomainName:
+    dev:
+      value: "*.aicat.me"
+    qa:
+      value: "*.aicat.me"
+
+
+  SubjectAlternativeName:
+    dev:
+      value: "aicat.me"
+    qa:
+      value: "aicat.me"
+
+
+  HostedZoneId:
+    dev:
+      value: Z3QNVGM3MHC4FW
+    qa:
+      value: Z3QNVGM3MHC4FW
+
+
+Resources:
+  CloudFrontACM:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !FindInMap
+        - DomainName
+        - !Ref UsedEnviron
+        - value
+      DomainValidationOptions:
+        - DomainName: !FindInMap
+            - DomainName
+            - !Ref UsedEnviron
+            - value
+          HostedZoneId: !FindInMap
+            - HostedZoneId
+            - !Ref UsedEnviron
+            - value
+      SubjectAlternativeNames:
+        - !FindInMap
+          - SubjectAlternativeName
+          - !Ref UsedEnviron
+          - value
+      ValidationMethod: DNS
+
+Outputs:
+  ACMARN:
+    Description: The ARN of the ACM
+    Value: !Ref CloudFrontACM

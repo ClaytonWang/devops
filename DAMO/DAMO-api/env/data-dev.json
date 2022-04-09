@@ -1,0 +1,22 @@
+[
+    {
+        "ParameterKey": "DBClusterIdentifier",
+        "ParameterValue": "damo-api-dev-rds-cluster"
+    },
+    {
+        "ParameterKey": "DatabaseUsername",
+        "ParameterValue": "damo_api_dev"
+    }, 
+    {
+        "ParameterKey": "InstanceType",
+        "ParameterValue": "db.r4.large"
+    },
+    {
+        "ParameterKey": "SecurityGroupIDs",
+        "ParameterValue": "sg-0a0cab2883f265885,sg-03d294231c1b99316"
+    },
+    {
+        "ParameterKey": "SubnetIDs",
+        "ParameterValue": "subnet-09d9e4fc315254db0,subnet-03dafe4a903bf77f3"
+    }
+]

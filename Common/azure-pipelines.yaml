@@ -1,0 +1,119 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+variables:      
+  ProjectName: 'history_model_service'
+  DisplayName: 'History model service'
+  
+trigger:
+- dev
+- release
+
+stages:
+  - stage: api_image
+    displayName: Build api image
+    jobs:  
+    - job: Build
+      displayName: Build
+      pool:
+        name: 'dev-cluster'
+      steps:
+      - checkout: self
+        displayName: Checkout self
+        path: $(ProjectName)
+        clean: true     
+
+      - bash: |
+          pwd
+          echo 'ls----------'
+          ls
+        displayName: 'echo ls' 
+        enabled: true
+
+      - task: SonarSource.sonarqube.15B84CA1-B62F-4A2A-A403-89B77A063157.SonarQubePrepare@4
+        displayName: 'Prepare analysis on SonarQube'
+        enabled: false
+        inputs:
+          SonarQube: 'AsiaPac:2476-$(ProjectName)'
+          scannerMode: CLI
+          configMode: manual
+          cliProjectKey: 'AsiaPac:2476-$(ProjectName)'
+          cliProjectName: 'AsiaPac:2476-$(ProjectName)'
+          extraProperties: |
+            # Additional properties that will be passed to the scanner, 
+            # Put one key=value per line, example:
+            # sonar.exclusions=**/*.bin
+            sonar.python.coverage.reportPath=*coverage.xml
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/dev'))
+
+      - task: SonarSource.sonarqube.6D01813A-9589-4B15-8491-8164AEB38055.SonarQubeAnalyze@4
+        enabled: false
+        displayName: 'Run Code Analysis'
+        continueOnError: true
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/dev'))   
+
+      - bash: |
+          aws s3 --region ap-southeast-1 cp  s3://atom-ai-model   ./atom-ai-model  --recursive
+        displayName: 'load model' 
+        enabled: true
+
+      - task: AmazonWebServices.aws-vsts-tools.S3Download.S3Download@1
+        displayName: 'download data from atom-ai-model/damo-ai-model'
+        enabled: false
+        inputs:
+          awsCredentials: 'cicduser-dev'
+          regionName: 'ap-southeast-1'
+          bucketName: 'atom-ai-model'
+          # sourceFolder: ''
+          targetFolder: '$(System.DefaultWorkingDirectory)/atom-ai-model'
+          overwrite: false
+          flattenFolders: false
+        continueOnError: true
+
+      - bash: |                    
+          docker build -t $(ProjectName):$(Build.BuildNumber) \
+            --build-arg branch=$(git name-rev --name-only HEAD|sed "s#remotes/origin/##g") \
+            --build-arg commit_id=$(Build.SourceVersion) \
+            --build-arg git_hash=$(git rev-parse --short HEAD) \
+            --build-arg build_number=$(Build.BuildNumber) \
+            --build-arg build_datetime="$(date '+%Y-%m-%d %H:%M:%S')" \
+            -f ./cli/Dockerfile .
+        displayName: 'build image' 
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)/$(ProjectName)
+
+      - task: Twistlock.twistcli-build-release-task.custom-build-release-task.twistcli-scan@1
+        displayName: 'Twistlock twistcli scan'
+        inputs:
+          twistlockService: twistlock.aicat.me
+          artifact: '$(ProjectName):$(Build.BuildNumber)'
+        continueOnError: true
+        enabled: false        
+
+      - task: AmazonWebServices.aws-vsts-tools.ECRPushImage.ECRPushImage@1
+        displayName: 'Push Image dev'
+        enabled: true
+        inputs:
+          awsCredentials: 'cicduser-dev'
+          regionName: 'ap-southeast-1'
+          sourceImageName: '$(ProjectName)'
+          sourceImageTag: '$(Build.BuildNumber)'
+          repositoryName: '$(ProjectName)'
+          pushTag: '$(Build.BuildNumber)'
+          autoCreateRepository: true  
+
+      - task: AmazonWebServices.aws-vsts-tools.ECRPushImage.ECRPushImage@1
+        displayName: 'Push Image prod'
+        enabled: true
+        inputs:
+          awsCredentials: 'cicd_user_prod.20200427'
+          regionName: 'us-east-1'
+          sourceImageName: '$(ProjectName)'
+          sourceImageTag: '$(Build.BuildNumber)'
+          repositoryName: '$(ProjectName)'
+          pushTag: '$(Build.BuildNumber)'
+          autoCreateRepository: true  
+      
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish Artifact: cli'
+        inputs:
+          PathtoPublish: cli
+          ArtifactName: cli

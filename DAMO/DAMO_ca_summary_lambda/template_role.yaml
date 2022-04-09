@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Use admin privilege to create this role.
+  Then we can use CICD user to assume this role to run cloudformation stack
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - cert
+      - prod
+
+  UserArn:
+    Type: String
+
+Resources:
+  CICDRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'damo-ca-summary-lambda-cf-role-${UsedEnviron}'
+      Tags:
+        - Key: AssetID
+          Value: 2703
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+               - cloudformation.amazonaws.com
+              AWS: !Ref "UserArn"
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub 'damo-ca-summary-lambda-cf-policy-${UsedEnviron}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DeleteVpcEndpoints
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeVpcEndpoints
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:CreateVpcEndpoint
+                  - lambda:CreateEventSourceMapping
+                  - lambda:GetEventSourceMapping
+                  - lambda:DeleteEventSourceMapping
+                  - lambda:UpdateEventSourceMapping
+                Resource:
+                  - "*"
+
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:AttachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  - iam:DeleteServiceLinkedRole
+                  - iam:PassRole
+                  - iam:DeleteRolePolicy
+                  - iam:CreateServiceLinkedRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:getRolePolicy
+                  - iam:ListRoleTags
+                  - iam:TagRole
+                  - iam:UntagRole
+#                  - iam:ListUserTags
+#                  - iam:TagUser
+#                  - iam:UntagUser
+                Resource:
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/damo-*"
+
+
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:CreateStack
+                  - cloudformation:ListChangeSet
+                Resource:
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/*"
+                  - !Sub "arn:aws:cloudformation:*:${AWS::AccountId}:stack/damo-ca-summary*/*"
+
+
+              - Effect: Allow
+                Action:
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:GetFunction
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:ListTags
+                  - lambda:UntagResource
+                  - lambda:UpdateFunctionCode
+                  - lambda:DeleteFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:CreateFunction
+                  - lambda:TagResource
+                  - lambda:PutFunctionConcurrency
+                  - lambda:DeleteFunctionConcurrency
+                  - lambda:PutFunctionEventInvokeConfig
+                  - lambda:DeleteFunctionEventInvokeConfig
+
+                Resource:
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:damo-ca-summary*"
+
+
+              - Effect: Allow
+                Action:
+                  - sqs:SetQueueAttributes
+                  - sqs:GetQueueAttributes
+                  - sqs:DeleteQueue
+                  - sqs:CreateQueue
+                Resource: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*'
+
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketPolicyStatus
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketNotification
+                  - s3:PutBucketTagging
+                  - s3:CreateBucket
+                  - s3:ListBucket
+                  - s3:PutBucketCORS
+                  - s3:DeleteBucketPolicy
+                  - s3:DeleteBucket
+                  - s3:GetBucketPolicy
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:PutEncryptionConfiguration
+                  - s3:GetEncryptionConfiguration
+                Resource:
+                  - arn:aws:s3:::damo-ca-summary*
+
+
+
+Outputs:
+  Role:
+    Description: The ARN of the role
+    Value: !GetAtt CICDRole.Arn

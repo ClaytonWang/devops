@@ -1,0 +1,162 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "readOnly",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:Describe*",
+                "autoscaling:Describe*",
+                "ec2:CreateSecurityGroup",
+                "ec2:DeleteSecurityGroup",
+                "ec2:ModifyImageAttribute",
+                "ec2:CreateImage",
+                "ec2:CopyImage",
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:RevokeSecurityGroupIngress",
+                "autoscaling:UpdateAutoScalingGroup",
+                "autoscaling:DeleteLaunchConfiguration",
+                "iam:GetInstanceProfile",
+                "ecs:ListServices",
+                "ecs:CreateCluster",
+                "ecs:DeleteCluster",
+                "ecs:PutAccountSetting",
+                "ecs:DescribeTaskDefinition",
+                "ecs:RegisterTaskDefinition",
+                "ecs:DeregisterTaskDefinition",
+                "ecr:GetAuthorizationToken",
+                "s3:HeadBucket"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "Logs",
+            "Effect": "Allow",
+            "Action": [
+                "logs:Describe*",
+                "logs:DeleteLogGroup",
+                "logs:CreateLogGroup",
+                "logs:PutRetentionPolicy"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "Webservice",
+            "Effect": "Allow",
+            "Action": [
+                "elasticloadbalancing:*"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "cloudformation",
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:CreateStack",
+                "cloudformation:UpdateStack",
+                "cloudformation:DescribeStackResources",
+                "cloudformation:DescribeStacks",
+                "cloudformation:DeleteChangeSet",
+                "cloudformation:CreateChangeSet",
+                "cloudformation:DescribeChangeSet",
+                "cloudformation:ExecuteChangeSet"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "Profile",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateInstanceProfile",
+                "iam:DeleteInstanceProfile",
+                "iam:RemoveRoleFromInstanceProfile",
+                "iam:AddRoleToInstanceProfile"
+            ],
+            "Resource": [
+                "arn:aws:iam::*:instance-profile/*"
+            ]
+        },
+        {
+            "Sid": "ROLE",
+            "Effect": "Allow",
+            "Action": [
+                "iam:AttachRolePolicy",
+                "iam:DetachRolePolicy",
+                "iam:PutRolePolicy",
+                "iam:CreateRole",
+                "iam:DeleteRole",
+                "iam:DeleteRolePolicy",
+                "iam:GetRolePolicy",
+                "sts:AssumeRole",
+                "iam:PassRole"
+            ],
+            "Resource": [
+                "arn:aws:iam::*:role/Damo*",
+                "arn:aws:iam::*:role/History*",
+                "arn:aws:iam::*:role/ecsTaskExecutionRole",
+                "arn:aws:iam::*:role/ecsTask_ExecutionRole",
+                "arn:aws:iam::*:role/ecsInstanceRole"
+            ]
+        },
+        {
+            "Sid": "ECS",
+            "Effect": "Allow",
+            "Action": [
+                "ecs:DescribeClusters",
+                "ecs:DescribeServices",
+                "ecs:RegisterContainerInstance",
+                "ecs:UpdateService",
+                "ecs:CreateService",
+                "ecs:DeleteService",
+                "ecr:CreateRepository",
+                "ecr:CompleteLayerUpload",
+                "ecr:DescribeRepositories",
+                "ecr:InitiateLayerUpload",
+                "ecr:UploadLayerPart",
+                "ecr:PutImage",
+                "ecr:BatchCheckLayerAvailability"
+            ],
+            "Resource": [
+                "arn:aws:ecs:*:*:cluster/*",
+                "arn:aws:ecs:*:*:service/*",
+                "arn:aws:ecr:*:*:repository/vstsagent",
+                "arn:aws:ecr:*:*:repository/history_*",
+                "arn:aws:ecr:*:*:repository/damo_*"
+            ]
+        },
+        {
+            "Sid": "AutoscalingGroup",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:TerminateInstances",
+                "ec2:RunInstances",
+                "autoscaling:CreateLaunchConfiguration",
+                "autoscaling:CreateAutoScalingGroup"
+            ],
+            "Resource": [
+                "arn:aws:autoscaling:*:*:launchConfiguration:*:launchConfigurationName/*",
+                "arn:aws:autoscaling:*:*:autoScalingGroup:*:autoScalingGroupName/*",
+                "arn:aws:ec2:*:*:subnet/*",
+                "arn:aws:ec2:*:*:network-interface/*",
+                "arn:aws:ec2:*::image/*",
+                "arn:aws:ec2:*:*:security-group/*",
+                "arn:aws:ec2:*:*:volume/*",
+                "arn:aws:ec2:*:*:instance/*"
+            ]
+        },
+        {
+            "Sid": "s3",
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket",
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::damo-ai-data/*",
+                "arn:aws:s3:::damo-ai-data",
+                "arn:aws:s3:::atom-ai-model/*",
+                "arn:aws:s3:::atom-ai-model"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,162 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Use admin privilege to create this role.
+  Then we can use CICD user to assume this role to run cloudformation stack
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - cert
+      - prod
+
+  UserArn:
+    Type: String
+
+Mappings:
+  cicdUserMap:
+    dev:
+      value: arn:aws:iam::476985428237:user/damo_cicd_user
+    cert:
+      value: arn:aws:iam::206710830665:user/cicd_user_prod
+    prod:
+      value: arn:aws:iam::206710830665:user/cicd_user_prod
+
+Outputs:
+  Role:
+    Description: The ARN of the role
+    Value: !GetAtt CICDRole.Arn
+
+Resources:
+  CICDRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub 'damo-classification-cf-role-${UsedEnviron}'
+      Tags:
+        - Key: AssetID
+          Value: 2703
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+              AWS: !Ref "UserArn"
+#              Service:
+#               - cloudformation.amazonaws.com
+#              AWS: !Split
+#                - ","
+#                - !FindInMap
+#                  - cicdUserMap
+#                  - !Ref Env
+#                  - value
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Sub 'damo-classification-cf-policy-${UsedEnviron}'
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketPolicyStatus
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketNotification
+                  - s3:PutBucketTagging
+                  - s3:CreateBucket
+                  - s3:ListBucket
+                  - s3:PutBucketCORS
+                  - s3:DeleteBucketPolicy
+                  - s3:DeleteBucket
+                  - s3:GetBucketPolicy
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:PutEncryptionConfiguration
+                  - s3:GetEncryptionConfiguration
+                Resource: 
+                  - !Sub 'arn:aws:s3:::damo-classification*'
+#                  - !Sub 'arn:aws:s3:::damo-classification-cf-template-${Env}/*'
+#                  - !Sub 'arn:aws:s3:::damo-lambdas'
+#                  - !Sub 'arn:aws:s3:::damo-lambdas/*'
+#                  - !Sub 'arn:aws:s3:::damo-lambdas-prod'
+#                  - !Sub 'arn:aws:s3:::damo-lambdas-prod/*'
+              - Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:ListTags
+                  - lambda:DeleteFunction
+                  - lambda:UpdateEventSourceMapping
+                  - lambda:GetFunction
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:UpdateFunctionCode
+                  - lambda:PutFunctionConcurrency
+                  - lambda:PutFunctionConcurrency
+                  - lambda:DeleteFunctionConcurrency
+                Resource:
+#                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:*:*:*'
+#                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:*:*'
+                  - !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:damo-classification*"
+              - Effect: Allow
+                Action:
+                  - lambda:CreateEventSourceMapping
+                  - lambda:GetEventSourceMapping
+                  - lambda:DeleteEventSourceMapping
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PassRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/*'
+              - Effect: Allow
+                Action:
+#                  - ec2:*
+                  - ec2:DeleteVpcEndpoints
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DescribeVpcEndpoints
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:CreateVpcEndpoint
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sqs:SetQueueAttributes
+                  - sqs:GetQueueAttributes
+                  - sqs:DeleteQueue
+                  - sqs:CreateQueue
+                Resource: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:*'
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:CreateStack
+                  - cloudformation:ListChangeSet
+#                cloudformation:*
+                Resource:
+                  - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/*"
+                  - !Sub "arn:aws:cloudformation:*:${AWS::AccountId}:stack/damo-classification*/*"
+#                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}::*/*'
+#                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:*/*'
+#                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:*:*/*'
+#                  - !Sub 'arn:aws:cloudformation:${AWS::Region}:*:*/*'

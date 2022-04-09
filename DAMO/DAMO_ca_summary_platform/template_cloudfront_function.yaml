@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  CloudFormation template for DAMO Cloudfront funciton Solution
+
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - cert
+      - dev
+
+
+Resources:
+  MyFunction:
+    Type: 'AWS::CloudFront::Function'
+    Properties:
+      AutoPublish: true
+      FunctionCode: |
+          function handler(event) {
+           var request = event.request;
+              var uri = request.uri;
+              console.log(uri)
+              if (uri != '/' && !uri.includes('.')) {
+                  var items = uri.split('/')
+                  var country = items[1]
+                  request.uri = "/" + country + "/index.html"
+              }
+              return request;
+          }
+#      FunctionCode: fileb://cloudfront_routing.js
+      FunctionConfig:
+        Comment: "Cloudfront function for routing"
+        Runtime: cloudfront-js-1.0
+      Name: !Sub "cloudfront-function-routing-${UsedEnviron}"
+
+Outputs:
+  FunctionArn:
+    Description: The ARN of the Cloudfront function
+    Value: !Ref "MyFunction"
+
+
+

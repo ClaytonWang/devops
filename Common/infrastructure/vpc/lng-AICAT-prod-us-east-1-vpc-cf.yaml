@@ -1,0 +1,1080 @@
+AWSTemplateFormatVersion: 2010-09-09
+Conditions:
+  CreateIGW-Condition: !Equals 
+    - !Ref CreateIGW
+    - 'Yes'
+  CreateSecurityUser: !Not 
+    - !Equals 
+      - !Ref SecurtyReviewUser
+      - ''
+  CreateVPCEndpoint-Condition: !Equals 
+    - !Ref AddS3Endpoint
+    - 'Yes'
+  IGWandPrivate0-Condition: !And 
+    - !Condition CreateIGW-Condition
+    - !Condition PrivateSubnet0-Condition
+  IGWandPrivate1-Condition: !And 
+    - !Condition CreateIGW-Condition
+    - !Condition PrivateSubnet1-Condition
+  IGWandPublic0-Condition: !And 
+    - !Condition CreateIGW-Condition
+    - !Condition PublicSubnet0-Condition
+  IGWandPublic1-Condition: !And 
+    - !Condition CreateIGW-Condition
+    - !Condition PublicSubnet1-Condition
+  PrivateSubnet0-Condition: !Not 
+    - !Equals 
+      - !Ref VPCPrivateSubnet0
+      - ''
+  PrivateSubnet1-Condition: !Not 
+    - !Equals 
+      - !Ref VPCPrivateSubnet1
+      - ''
+  PrivateSubnet2-Condition: !Not 
+    - !Equals 
+      - !Ref VPCPrivateSubnet2
+      - ''
+  PrivateSubnet3-Condition: !Not 
+    - !Equals 
+      - !Ref VPCPrivateSubnet3
+      - ''
+  PublicSubnet0-Condition: !Not 
+    - !Equals 
+      - !Ref VPCPublicSubnet0
+      - ''
+  PublicSubnet1-Condition: !Not 
+    - !Equals 
+      - !Ref VPCPublicSubnet1
+      - ''
+  PublicSubnet2-Condition: !Not 
+    - !Equals 
+      - !Ref VPCPublicSubnet2
+      - ''
+  PublicSubnet3-Condition: !Not 
+    - !Equals 
+      - !Ref VPCPublicSubnet3
+      - ''
+  SetE2ENetRule: !Not 
+    - !Equals 
+      - !Ref E2EOpsNetwork
+      - ''
+  SetOpsNetRule: !Not 
+    - !Equals 
+      - !Ref SystemOpsNetwork
+      - ''
+Description: >-
+  This template creates the RETS standard security groups and NACLs required for
+  connectivity to the RE Global network.
+
+
+  It also creates two IAM users. One with access to VPN configuration to allow
+  for automated connection to 
+
+
+  the RETS global network, and the other with the required permissions for the
+  RE InfoSec Trusted Advisor platform.
+
+
+
+
+  Once the VPN configuration has been completed on both sides you can delete
+  this stack - it will only delete the
+
+
+  user created to read VPN configuration - retsreadvpnconfiguser
+
+  IAM role should not allow * action on its permissions policy
+  User is not assigned to a group
+  https://tfs-glo-lexisadvance.visualstudio.com/CloudShare/_git/AWS-CloudFormationSnippets?path=%2FVPC&version=GBmaster
+
+Mappings:
+  GCCRegions:
+    Cincinatti:
+      IP: 198.176.80.72
+    Singapore:
+      IP: 198.176.84.68
+Metadata:
+  'AWS::CloudFormation::Interface':
+    ParameterGroups:
+      - Label:
+          default: Create new VPC
+        Parameters:
+          - VPCSubnet
+          - AddS3Endpoint
+          - CreateIGW
+      - Label:
+          default: >-
+            Public Subnets - Select all subnets the public ACL should be applied
+            to
+        Parameters:
+          - VPCPublicSubnet0
+          - VPCPublicSubnet1
+          - VPCPublicSubnet2
+          - VPCPublicSubnet3
+      - Label:
+          default: >-
+            Private Subnets - Select all subnets the private ACL should be
+            applied to
+        Parameters:
+          - VPCPrivateSubnet0
+          - VPCPrivateSubnet1
+          - VPCPrivateSubnet2
+          - VPCPrivateSubnet3
+      - Label:
+          default: Network ACL Settings
+        Parameters:
+          - E2EOpsNetwork
+          - SystemOpsNetwork
+      - Label:
+          default: RETS Settings
+        Parameters:
+          - GCCRegion
+          - SecurtyReviewUser
+    ParameterLabels:
+      AddS3Endpoint:
+        default: Do you want a VPC endpoint for services such as S3 in this VPC
+      E2EOpsNetwork:
+        default: What is the subnet and mask of the E2E Ops network if one exists
+      GCCRegion:
+        default: Which GCC Region will the VPN link be terminated in
+      SecurtyReviewUser:
+        default: Name of the IAM user for the RE InfoSec team (read-only rights)
+      SystemOpsNetwork:
+        default: What is the subnet and mask of the System Ops network if one exists
+      VPCID:
+        default: Which VPC should this template be applied to
+      VPCPrivateSubnet0:
+        default: >-
+          Enter the subnet and mask for the first private subnet in CIDR format
+          (x.x.x.x/y)
+      VPCPrivateSubnet1:
+        default: >-
+          Enter the subnet and mask for the second private subnet in CIDR format
+          (x.x.x.x/y)
+      VPCPrivateSubnet2:
+        default: >-
+          Enter the subnet and mask for the third private subnet in CIDR format
+          (x.x.x.x/y)
+      VPCPrivateSubnet3:
+        default: >-
+          Enter the subnet and mask for the fourth private subnet in CIDR format
+          (x.x.x.x/y)
+      VPCPublicSubnet0:
+        default: >-
+          Enter the subnet and mask for the first public subnet in CIDR format
+          (x.x.x.x/y)
+      VPCPublicSubnet1:
+        default: >-
+          Enter the subnet and mask for the second public subnet in CIDR format
+          (x.x.x.x/y)
+      VPCPublicSubnet2:
+        default: >-
+          Enter the subnet and mask for the third public subnet in CIDR format
+          (x.x.x.x/y)
+      VPCPublicSubnet3:
+        default: >-
+          Enter the subnet and mask for the fourth public subnet in CIDR format
+          (x.x.x.x/y)
+      VPCSubnet:
+        default: Enter the CIDR for the IP Block allocated for this VPC
+      envname:
+        default: Name of this environment or product
+Outputs:
+  AWSRegion:
+    Description: Region this VPC exists in
+    Value: !Ref 'AWS::Region'
+  AccountID:
+    Description: This AWS Account ID
+    Value: !Ref 'AWS::AccountId'
+  RoleName:
+    Description: VPN Read Role Name
+    Value: !Ref retsvpnreadrole
+  SecurityAccessKey:
+    Condition: CreateSecurityUser
+    Description: AWSAccessKeyId of the LN Security Read user
+    Value: !Ref SecurityUserAPIKey
+  SecuritySecretKey:
+    Condition: CreateSecurityUser
+    Description: AWSSecretKey of the LN Security Read user
+    Value: !GetAtt 
+      - SecurityUserAPIKey
+      - SecretAccessKey
+  VPCID:
+    Description: VPC ID
+    Value: !Ref VPCID
+  VPCSubnet:
+    Description: Subnet assigned to this VPC
+    Value: !Ref VPCSubnet
+  VPNID:
+    Description: ID of the corporate VPN Connection
+    Value: !Ref VPNConnection
+  environment:
+    Description: Name of this product or environment
+    Value: !Ref envname
+Parameters:
+  AddS3Endpoint:
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+    Default: 'Yes'
+    Description: Choose whether to include a VPC Endpoint for services such as S3
+    Type: String
+  CreateIGW:
+    AllowedValues:
+      - 'Yes'
+      - 'No'
+    Default: 'Yes'
+    Description: Create an IGW and NAT Gateways
+    Type: String
+  E2EOpsNetwork:
+    Description: CIDR of the E2EOPS VPC
+    Type: String
+  GCCRegion:
+    AllowedValues:
+      - Singapore
+      - Cincinatti
+    Default: Cincinatti
+    Description: GCC Site where the VPN connection should be terminated.
+    Type: String
+  SecurtyReviewUser:
+    Default: re-securityreviewaccess
+    Description: >-
+      Username for the RE Security Review account. User will not be created if
+      this field is blank
+    Type: String
+  SystemOpsNetwork:
+    Description: CIDR of the SystemOPS VPC
+    Type: String
+  VPCPrivateSubnet0:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$|^$
+    ConstraintDescription: CIDR block parameter must be in the form 10.x.x.x/16-28
+    Description: Private Subnets in this VPC
+    Type: String
+  VPCPrivateSubnet1:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$|^$
+    ConstraintDescription: CIDR block parameter must be in the form 10.x.x.x/16-28
+    Description: Private Subnets in this VPC
+    Type: String
+  VPCPrivateSubnet2:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$|^$
+    ConstraintDescription: CIDR block parameter must be in the form 10.x.x.x/16-28
+    Description: Private Subnets in this VPC
+    Type: String
+  VPCPrivateSubnet3:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$|^$
+    ConstraintDescription: CIDR block parameter must be in the form 10.x.x.x/16-28
+    Description: Private Subnets in this VPC
+    Type: String
+  VPCPublicSubnet0:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$|^$
+    ConstraintDescription: CIDR block parameter must be in the form 10.x.x.x/16-28
+    Description: Public Subnets in this VPC
+    Type: String
+  VPCPublicSubnet1:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$|^$
+    ConstraintDescription: CIDR block parameter must be in the form 10.x.x.x/16-28
+    Description: Public Subnets in this VPC
+    Type: String
+  VPCPublicSubnet2:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$|^$
+    ConstraintDescription: CIDR block parameter must be in the form 10.x.x.x/16-28
+    Description: Public Subnets in this VPC
+    Type: String
+  VPCPublicSubnet3:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$|^$
+    ConstraintDescription: CIDR block parameter must be in the form 10.x.x.x/16-28
+    Description: Public Subnets in this VPC
+    Type: String
+  VPCSubnet:
+    AllowedPattern: >-
+      ^10\.(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
+    Description: CIDR of the VPC to be created.
+    Type: String
+  envname:
+    Default: product
+    Description: Name of the application or product to be hosted in this environment
+    Type: String
+Resources:
+  CustomerGateway:
+    DeletionPolicy: Retain
+    Properties:
+      BgpAsn: '65050'
+      IpAddress: !FindInMap 
+        - GCCRegions
+        - !Ref GCCRegion
+        - IP
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackName'
+        - Key: VPN
+          Value: !Join 
+            - ''
+            - - 'Gateway to '
+              - !Ref GCCRegion
+      Type: ipsec.1
+    Type: 'AWS::EC2::CustomerGateway'
+  InternetGateway:
+    Condition: CreateIGW-Condition
+    DeletionPolicy: Retain
+    Type: 'AWS::EC2::InternetGateway'
+  NatA:
+    Condition: IGWandPublic0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AllocationId: !GetAtt 
+        - NatEipA
+        - AllocationId
+      SubnetId: !Ref PublicSubnet0
+    Type: 'AWS::EC2::NatGateway'
+  NatAttachment:
+    Condition: CreateIGW-Condition
+    DeletionPolicy: Retain
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+  NatB:
+    Condition: IGWandPublic1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AllocationId: !GetAtt 
+        - NatEipB
+        - AllocationId
+      SubnetId: !Ref PublicSubnet1
+    Type: 'AWS::EC2::NatGateway'
+  NatEipA:
+    Condition: IGWandPublic0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      Domain: vpc
+    Type: 'AWS::EC2::EIP'
+  NatEipB:
+    Condition: IGWandPublic1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      Domain: vpc
+    Type: 'AWS::EC2::EIP'
+  NatRouteA:
+    Condition: IGWandPublic0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatA
+      RouteTableId: !Ref PrivateRouteTableA
+    Type: 'AWS::EC2::Route'
+  NatRouteB:
+    Condition: IGWandPublic1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatB
+      RouteTableId: !Ref PrivateRouteTableB
+    Type: 'AWS::EC2::Route'
+  PrivateInbound100:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'false'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '100'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateInbound110:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 172.29.0.0/16
+      Egress: 'false'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '110'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateInbound120:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 172.16.0.0/12
+      Egress: 'false'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '120'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateInbound130:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 138.12.0.0/16
+      Egress: 'false'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '130'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateInbound140:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 145.36.0.0/16
+      Egress: 'false'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '140'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateInbound150:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 198.185.0.0/16
+      Egress: 'false'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '150'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateInbound160:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 198.206.141.0/24
+      Egress: 'false'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '160'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateInbound170:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 207.24.0.0/16
+      Egress: 'false'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '170'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateNetworkACL:
+    DeletionPolicy: Retain
+    Properties:
+      Tags:
+        - Key: Name
+          Value: rets-private-network-acl
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::NetworkAcl'
+  PrivateOutbound100:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'true'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '100'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateOutbound110:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 172.29.0.0/16
+      Egress: 'true'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '110'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateOutbound120:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 172.16.0.0/12
+      Egress: 'true'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '120'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateOutbound130:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 138.12.0.0/16
+      Egress: 'true'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '130'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateOutbound140:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 145.36.0.0/16
+      Egress: 'true'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '140'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateOutbound150:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 198.185.0.0/16
+      Egress: 'true'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '150'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateOutbound160:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 198.206.141.0/24
+      Egress: 'true'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '160'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateOutbound170:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 207.24.0.0/16
+      Egress: 'true'
+      NetworkAclId: !Ref PrivateNetworkACL
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '170'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PrivateRouteAssociation0:
+    Condition: PrivateSubnet0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      SubnetId: !Ref PrivateSubnet0
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  PrivateRouteAssociation1:
+    Condition: PrivateSubnet1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      SubnetId: !Ref PrivateSubnet1
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  PrivateRouteAssociation2:
+    Condition: PrivateSubnet2-Condition
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableA
+      SubnetId: !Ref PrivateSubnet2
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  PrivateRouteAssociation3:
+    Condition: PrivateSubnet3-Condition
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableId: !Ref PrivateRouteTableB
+      SubnetId: !Ref PrivateSubnet3
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  PrivateRouteTableA:
+    DeletionPolicy: Retain
+    Properties:
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::RouteTable'
+  PrivateRouteTableB:
+    DeletionPolicy: Retain
+    Properties:
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::RouteTable'
+  PrivateSubnet0:
+    Condition: PrivateSubnet0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - a
+      CidrBlock: !Ref VPCPrivateSubnet0
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1a
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::Subnet'
+  PrivateSubnet0ACL:
+    Condition: PrivateSubnet0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      NetworkAclId: !Ref PrivateNetworkACL
+      SubnetId: !Ref PrivateSubnet0
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  PrivateSubnet1:
+    Condition: PrivateSubnet1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - b
+      CidrBlock: !Ref VPCPrivateSubnet1
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet1b
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::Subnet'
+  PrivateSubnet1ACL:
+    Condition: PrivateSubnet1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      NetworkAclId: !Ref PrivateNetworkACL
+      SubnetId: !Ref PrivateSubnet1
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  PrivateSubnet2:
+    Condition: PrivateSubnet2-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - a
+      CidrBlock: !Ref VPCPrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2a
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::Subnet'
+  PrivateSubnet2ACL:
+    Condition: PrivateSubnet2-Condition
+    DeletionPolicy: Retain
+    Properties:
+      NetworkAclId: !Ref PrivateNetworkACL
+      SubnetId: !Ref PrivateSubnet2
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  PrivateSubnet3:
+    Condition: PrivateSubnet3-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - b
+      CidrBlock: !Ref VPCPrivateSubnet3
+      Tags:
+        - Key: Name
+          Value: PrivateSubnet2b
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::Subnet'
+  PrivateSubnet3ACL:
+    Condition: PrivateSubnet3-Condition
+    DeletionPolicy: Retain
+    Properties:
+      NetworkAclId: !Ref PrivateNetworkACL
+      SubnetId: !Ref PrivateSubnet3
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  PublicDefaultRoute:
+    Condition: CreateIGW-Condition
+    DeletionPolicy: Retain
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+    Type: 'AWS::EC2::Route'
+  PublicInbound100:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'false'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '80'
+        To: '80'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '100'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicInbound110:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'false'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '443'
+        To: '443'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '110'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicInbound120:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'false'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '1024'
+        To: '65535'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '120'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicInbound130:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'false'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '22'
+        To: '22'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '130'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicInbound140:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'false'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '3389'
+        To: '3389'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '140'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicInbound150:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'false'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '8081'
+        To: '8081'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '150'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicInbound160:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'false'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '8082'
+        To: '8082'
+      Protocol: '17'
+      RuleAction: allow
+      RuleNumber: '160'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicInbound170:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'false'
+      Icmp:
+        Code: '-1'
+        Type: '8'
+      NetworkAclId: !Ref PublicNetworkACL
+      Protocol: '1'
+      RuleAction: allow
+      RuleNumber: '170'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicInbound180:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'false'
+      Icmp:
+        Code: '-1'
+        Type: '30'
+      NetworkAclId: !Ref PublicNetworkACL
+      Protocol: '1'
+      RuleAction: allow
+      RuleNumber: '180'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicNetworkACL:
+    DeletionPolicy: Retain
+    Properties:
+      Tags:
+        - Key: Name
+          Value: rets-public-network-acl
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::NetworkAcl'
+  PublicOutbound100:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'true'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '80'
+        To: '80'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '100'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicOutbound110:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'true'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '443'
+        To: '443'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '110'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicOutbound120:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'true'
+      NetworkAclId: !Ref PublicNetworkACL
+      PortRange:
+        From: '1024'
+        To: '65535'
+      Protocol: '6'
+      RuleAction: allow
+      RuleNumber: '120'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicOutbound170:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'true'
+      Icmp:
+        Code: '-1'
+        Type: '0'
+      NetworkAclId: !Ref PublicNetworkACL
+      Protocol: '1'
+      RuleAction: allow
+      RuleNumber: '170'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicOutbound180:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: 10.0.0.0/8
+      Egress: 'true'
+      Icmp:
+        Code: '0'
+        Type: '11'
+      NetworkAclId: !Ref PublicNetworkACL
+      Protocol: '1'
+      RuleAction: allow
+      RuleNumber: '180'
+    Type: 'AWS::EC2::NetworkAclEntry'
+  PublicRouteAssociation0:
+    Condition: PublicSubnet0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet0
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  PublicRouteAssociation1:
+    Condition: PublicSubnet1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet1
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  PublicRouteAssociation2:
+    Condition: PublicSubnet2-Condition
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet2
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  PublicRouteAssociation3:
+    Condition: PublicSubnet3-Condition
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet3
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+  PublicRouteTable:
+    DeletionPolicy: Retain
+    Properties:
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::RouteTable'
+  PublicSubnet0:
+    Condition: PublicSubnet0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - a
+      CidrBlock: !Ref VPCPublicSubnet0
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1a
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::Subnet'
+  PublicSubnet0ACL:
+    Condition: PublicSubnet0-Condition
+    DeletionPolicy: Retain
+    Properties:
+      NetworkAclId: !Ref PublicNetworkACL
+      SubnetId: !Ref PublicSubnet0
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  PublicSubnet1:
+    Condition: PublicSubnet1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - b
+      CidrBlock: !Ref VPCPublicSubnet1
+      Tags:
+        - Key: Name
+          Value: PublicSubnet1b
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::Subnet'
+  PublicSubnet1ACL:
+    Condition: PublicSubnet1-Condition
+    DeletionPolicy: Retain
+    Properties:
+      NetworkAclId: !Ref PublicNetworkACL
+      SubnetId: !Ref PublicSubnet1
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  PublicSubnet2:
+    Condition: PublicSubnet2-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - a
+      CidrBlock: !Ref VPCPublicSubnet2
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2a
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::Subnet'
+  PublicSubnet2ACL:
+    Condition: PublicSubnet2-Condition
+    DeletionPolicy: Retain
+    Properties:
+      NetworkAclId: !Ref PublicNetworkACL
+      SubnetId: !Ref PublicSubnet2
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  PublicSubnet3:
+    Condition: PublicSubnet3-Condition
+    DeletionPolicy: Retain
+    Properties:
+      AvailabilityZone: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - b
+      CidrBlock: !Ref VPCPublicSubnet3
+      Tags:
+        - Key: Name
+          Value: PublicSubnet2b
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::Subnet'
+  PublicSubnet3ACL:
+    Condition: PublicSubnet3-Condition
+    DeletionPolicy: Retain
+    Properties:
+      NetworkAclId: !Ref PublicNetworkACL
+      SubnetId: !Ref PublicSubnet3
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+  S3Endpoint:
+    DeletionPolicy: Retain
+    Properties:
+      RouteTableIds:
+        - !Ref PrivateRouteTableA
+        - !Ref PrivateRouteTableB
+        - !Ref PublicRouteTable
+      ServiceName: !Join 
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .s3
+      VpcId: !Ref VPCID
+    Type: 'AWS::EC2::VPCEndpoint'
+  SecurityUserAPIKey:
+    Condition: CreateSecurityUser
+    DeletionPolicy: Retain
+    Properties:
+      UserName: !Ref securityreviewaccessuser
+    Type: 'AWS::IAM::AccessKey'
+  VPCID:
+    DeletionPolicy: Retain
+    Properties:
+      CidrBlock: !Ref VPCSubnet
+      Tags:
+        - Key: Name
+          Value: !Ref envname
+    Type: 'AWS::EC2::VPC'
+  VPNConnection:
+    DeletionPolicy: Retain
+    Properties:
+      CustomerGatewayId: !Ref CustomerGateway
+      StaticRoutesOnly: 'false'
+      Type: ipsec.1
+      VpnGatewayId: !Ref VPNGateway
+    Type: 'AWS::EC2::VPNConnection'
+  VPNGateway:
+    DeletionPolicy: Retain
+    Properties:
+      AmazonSideAsn: '4200003999'
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackName'
+      Type: ipsec.1
+    Type: 'AWS::EC2::VPNGateway'
+  VPNGatewayAttachment:
+    DeletionPolicy: Retain
+    Properties:
+      VpcId: !Ref VPCID
+      VpnGatewayId: !Ref VPNGateway
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+  VPNRoutePropagation:
+    DeletionPolicy: Retain
+    DependsOn:
+      - VPNGateway
+      - VPNConnection
+    Properties:
+      RouteTableIds:
+        - !Ref PrivateRouteTableA
+        - !Ref PrivateRouteTableB
+        - !Ref PublicRouteTable
+      VpnGatewayId: !Ref VPNGateway
+    Type: 'AWS::EC2::VPNGatewayRoutePropagation'
+  retsvpnreadrole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              AWS: 'arn:aws:iam::279006408678:user/rets-vpn-read-user'
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - 'ec2:DescribeVpnConnections'
+                  - 'ec2:DescribeVpcs'
+                  - 'ec2:DescribeVpnGateways'
+                  - 'directconnect:Describe*'
+                Effect: Allow
+                Resource:
+                  - '*'
+          PolicyName: allow-describe-vpn-connections
+      RoleName: rets-vpn-read-role
+    Type: 'AWS::IAM::Role'
+  securityreviewaccessuser:
+    Condition: CreateSecurityUser
+    DeletionPolicy: Retain
+    Properties:
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/ReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/AWSSupportAccess'
+      UserName: !Ref SecurtyReviewUser
+    Type: 'AWS::IAM::User'

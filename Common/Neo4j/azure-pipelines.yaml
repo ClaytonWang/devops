@@ -1,0 +1,23 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+variables:      
+  ProjectName: 'neo'
+trigger: none
+stages:
+  - stage: online_image
+    variables:
+        - group: aicat-common-variables
+    displayName: Build online image
+    jobs:  
+    - job: Build
+      displayName: Build
+      pool:
+        name: 'dev-cluster'
+
+      steps:
+      - bash: | 
+          make push_image
+        displayName: 'build image' 
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)/s/Common/Neo4j
+
+

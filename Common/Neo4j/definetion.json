@@ -1,0 +1,157 @@
+{
+    "ipcMode": null,
+    "executionRoleArn": "arn:aws:iam::476985428237:role/ecsTaskExecutionRole",
+    "containerDefinitions": [
+        {
+            "dnsSearchDomains": null,
+            "environmentFiles": [],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/neo4j-core",
+                    "awslogs-region": "ap-southeast-1",
+                    "awslogs-stream-prefix": "ecs"
+                }
+            },
+            "entryPoint": null,
+            "portMappings": [
+                {
+                    "hostPort": 5000,
+                    "protocol": "tcp",
+                    "containerPort": 5000
+                },
+                {
+                    "hostPort": 6000,
+                    "protocol": "tcp",
+                    "containerPort": 6000
+                },
+                {
+                    "hostPort": 7000,
+                    "protocol": "tcp",
+                    "containerPort": 7000
+                },
+                {
+                    "hostPort": 7474,
+                    "protocol": "tcp",
+                    "containerPort": 7474
+                },
+                {
+                    "hostPort": 7687,
+                    "protocol": "tcp",
+                    "containerPort": 7687
+                }
+            ],
+            "command": null,
+            "linuxParameters": null,
+            "cpu": 0,
+            "environment": [
+                {
+                    "name": "NEO4J_ACCEPT_LICENSE_AGREEMENT",
+                    "value": "yes"
+                },
+                {
+                    "name": "NEO4J_AUTH",
+                    "value": "eo4j/neo4j"
+                },
+                {
+                    "name": "NEO4J_causal__clustering_disable__middleware__logging",
+                    "value": "false"
+                },
+                {
+                    "name": "NEO4J_causalClustering_discoveryAdvertisedAddress",
+                    "value": "neo4j-core.local:5000"
+                },
+                {
+                    "name": "NEO4J_causalClustering_expectedCoreClusterSize",
+                    "value": "3"
+                },
+                {
+                    "name": "NEO4J_causalClustering_initialDiscoveryMembers",
+                    "value": "neo4j-core.local:5000"
+                },
+                {
+                    "name": "NEO4J_causalClustering_raftAdvertisedAddress",
+                    "value": "neo4j-core.local:7000"
+                },
+                {
+                    "name": "NEO4J_causalClustering_transactionAdvertisedAddress",
+                    "value": "neo4j-core.local:6000"
+                },
+                {
+                    "name": "NEO4J_dbms_memory_heap_initial__size",
+                    "value": "10"
+                },
+                {
+                    "name": "NEO4J_dbms_memory_pagecache_size",
+                    "value": "10"
+                },
+                {
+                    "name": "NEO4J_dbms_mode",
+                    "value": "CORE"
+                }
+            ],
+            "resourceRequirements": null,
+            "ulimits": null,
+            "dnsServers": null,
+            "mountPoints": [
+                {
+                    "readOnly": null,
+                    "containerPath": "/data",
+                    "sourceVolume": "neo4j-data"
+                }
+            ],
+            "workingDirectory": null,
+            "secrets": null,
+            "dockerSecurityOptions": null,
+            "memoryReservation": 512,
+            "volumesFrom": null,
+            "stopTimeout": null,
+            "image": "neo4j:4.2.1-enterprise",
+            "startTimeout": null,
+            "firelensConfiguration": null,
+            "dependsOn": null,
+            "disableNetworking": false,
+            "interactive": null,
+            "healthCheck": null,
+            "essential": true,
+            "links": null,
+            "hostname": null,
+            "extraHosts": null,
+            "pseudoTerminal": null,
+            "user": null,
+            "readonlyRootFilesystem": null,
+            "dockerLabels": null,
+            "systemControls": null,
+            "privileged": null,
+            "name": "neo4j-core",
+            "repositoryCredentials": {
+                "credentialsParameter": ""
+            }
+        }
+    ],
+    "memory": "2048",
+    "taskRoleArn": null,
+    "family": "neo4j-core",
+    "pidMode": null,
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "networkMode": "awsvpc",
+    "cpu": "1024",
+    "inferenceAccelerators": null,
+    "proxyConfiguration": null,
+    "volumes": [
+        {
+            "fsxWindowsFileServerVolumeConfiguration": null,
+            "efsVolumeConfiguration": {
+                "transitEncryptionPort": null,
+                "fileSystemId": "fs-35769a75",                
+                "rootDirectory": "/"
+            },
+            "name": "neo4j-data",
+            "host": null,
+            "dockerVolumeConfiguration": null
+        }
+    ],
+    "tags": []
+}

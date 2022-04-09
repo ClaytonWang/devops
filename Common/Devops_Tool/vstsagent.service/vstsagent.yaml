@@ -1,0 +1,47 @@
+Resources:
+    vstsagentTask: 
+        Type: AWS::ECS::TaskDefinition
+        Properties:             
+            Volumes: 
+            - 
+                Host: 
+                    SourcePath: "/var/run/docker.sock/"
+                Name: "docker-sock"
+            - 
+                Host: 
+                    SourcePath: "/usr/bin/docker/"
+                Name: "docker"
+            ContainerDefinitions: 
+            - 
+                Name: 'vstsagent'              
+                Image: '476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/vstsagent:latest'                 
+                Essential: "true"
+                MemoryReservation: "800"
+                # User: "dockeru:docker"
+                MountPoints: 
+                    - 
+                        SourceVolume: "docker-sock"
+                        ContainerPath: "/var/run/docker.sock"
+                    - 
+                        SourceVolume: "docker"
+                        ContainerPath: "/usr/bin/docker"
+                Environment: 
+                -
+                    Name: "AZP_URL"
+                    Value: "https://tfs-glo-apac.visualstudio.com/"                   
+                -
+                    Name: "AZP_TOKEN"
+                    Value: "snym54gqoxdanlritavsqpngharg573rzb6k3gs7k433xmezngza"
+                -
+                    Name: "AZP_POOL"
+                    Value: "dev-cluster"
+                
+    vstsagentService: 
+        Type: AWS::ECS::Service
+        Properties: 
+            Cluster: "dev-cluster"
+            DesiredCount: "3"
+            TaskDefinition: 
+                Ref: "vstsagentTask"    
+            
+            

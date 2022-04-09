@@ -1,0 +1,45 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+variables:      
+  ProjectName: 'vstsagent'
+trigger: none
+stages:
+  - stage: online_image
+    variables:
+        - group: aicat-common-variables
+    displayName: Build online image
+    jobs:  
+    - job: Build
+      displayName: Build
+      pool:
+        name: 'dev-cluster'
+        # demands:
+        #   - Agent.Name -equals 14425d4dad9e 
+      steps:
+      - bash: |
+          export AWS_ACCESS_KEY_ID=$(dev.AWS_ACCESS_KEY_ID)
+          export AWS_SECRET_ACCESS_KEY=$(dev.AWS_SECRET_ACCESS_KEY)
+          aws ecr get-login-password --region ap-southeast-1 |\
+          docker login --username AWS --password-stdin 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com
+          docker build -t $(ProjectName):$(Build.BuildNumber) -f ./Dockerfile .          
+        displayName: 'build image' 
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)/s/Common/Devops_Tool/vstsagent.service/
+
+      - task: Twistlock.twistcli-build-release-task.custom-build-release-task.twistcli-scan@1
+        displayName: 'Twistlock twistcli scan'
+        inputs:
+          twistlockService: twistlock.aicat.me
+          artifact: '$(ProjectName):$(Build.BuildNumber)'
+        continueOnError: true
+        enabled: true
+
+      - bash: |          
+          export AWS_ACCESS_KEY_ID=$(dev.AWS_ACCESS_KEY_ID)
+          export AWS_SECRET_ACCESS_KEY=$(dev.AWS_SECRET_ACCESS_KEY)
+          aws ecr get-login-password --region ap-southeast-1 | \
+          docker login --username AWS --password-stdin 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com
+          docker tag $(ProjectName):$(Build.BuildNumber) 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/$(ProjectName):$(Build.BuildNumber)
+          docker push 476985428237.dkr.ecr.ap-southeast-1.amazonaws.com/$(ProjectName):$(Build.BuildNumber)
+        displayName: 'push image' 
+        enabled: true
+        workingDirectory: $(Agent.BuildDirectory)/s/Common/Devops_Tool/vstsagent.service/

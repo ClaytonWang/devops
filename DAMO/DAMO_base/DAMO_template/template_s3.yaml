@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Stack to setup S3"
+Parameters:
+  S3BucketName:
+    Type: String
+
+Resources:
+  BackendS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketName: !Ref S3BucketName
+      Tags:
+        - Key: AssetsID
+          Value: 2703
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+
+Outputs:
+  S3:
+    Description: The ARN of the ACM
+    Value: !Ref "BackendS3Bucket"
+

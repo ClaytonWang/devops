@@ -1,0 +1,123 @@
+Resources:
+    EfsFileSystem:
+        Type: AWS::EFS::FileSystem
+        Properties:
+            Encrypted: true
+            FileSystemTags:
+                -   Key: Name
+                    Value: !Sub "${AWS::StackName}-efs"
+            PerformanceMode: generalPurpose
+            ThroughputMode: bursting
+
+    CloudwatchLogsGroup:
+        Type: AWS::Logs::LogGroup
+        Properties:
+            LogGroupName: !Ref 'AWS::StackName'
+            RetentionInDays: 365
+          
+    TaskDefinition: 
+        Type: AWS::ECS::TaskDefinition
+        Properties:             
+            Volumes: 
+            - 
+                Name: "efs-data"
+                EFSVolumeConfiguration:
+                    FilesystemId: !EfsFileSystem
+                    transitEncryption: ""
+          
+            ContainerDefinitions: 
+            - 
+                Name: 'neo4j-definition'              
+                Image: 'neo4j:4.2.1-enterprise'                 
+                Essential: "true"
+                MountPoints: 
+                    - 
+                        SourceVolume: "efs-data"
+                        ContainerPath: "/data"
+                PortMappings:
+                    - 
+                    ContainerPort: 5000 
+                    HostPort: 0
+                    Protocol: "tcp"  
+                    - 
+                    ContainerPort: 6000 
+                    HostPort: 0
+                    Protocol: "tcp"  
+                    - 
+                    ContainerPort: 7000 
+                    HostPort: 0
+                    Protocol: "tcp"  
+                    - 
+                    ContainerPort: 7474 
+                    HostPort: 0
+                    Protocol: "tcp"  
+                    - 
+                    ContainerPort: 7687 
+                    HostPort: 0
+                    Protocol: "tcp"  
+
+                LogConfiguration:
+                    LogDriver: awslogs
+                    Options:
+                        awslogs-group: !Ref 'CloudwatchLogsGroup'
+                        awslogs-region: !Ref 'AWS::Region'
+                Environment: 
+                -
+                Name: "NEO4J_ACCEPT_LICENSE_AGREEMENT"
+                Value: "yes"                   
+                -
+                Name: "NEO4J_dbms_memory_pagecache_size"
+                Value: "10"
+                -
+                Name: "NEO4J_dbms_memory_heap_initial__size"
+                Value: "10"
+                -
+                Name: "NEO4J_AUTH"
+                Value: "neo4j/neo4j"
+                -
+                Name: "NEO4J_dbms_mode"
+                Value: "CORE"
+                -
+                Name: "NEO4J_causalClustering_discoveryAdvertisedAddress"
+                Value: "neo4j-core1.aicat.me:5000"
+                -
+                Name: "NEO4J_causalClustering_transactionAdvertisedAddress"
+                Value: "neo4j-core1.aicat.me:6000"
+                -
+                Name: "NEO4J_causalClustering_raftAdvertisedAddress"
+                Value: "neo4j-core1.aicat.me:7000"
+                -
+                Name: "NEO4J_causalClustering_expectedCoreClusterSize"
+                Value: "3"
+                -
+                Name: "NEO4J_causalClustering_initialDiscoveryMembers"
+                Value: "neo4j-core1.aicat.me:5000，neo4j-core2.aicat.me:5000，neo4j-core3.aicat.me:5000"
+                -
+                Name: "NEO4J_causal__clustering_disable__middleware__logging"
+                Value: "false"
+                
+    Service: 
+        Type: AWS::ECS::Service
+        Properties: 
+            Cluster: "DAMO-cluster"
+            DesiredCount: "1"
+            TaskDefinition: 
+                Ref: "TaskDefinition"    
+
+            PlacementStrategies:
+                - 
+                Type: spread
+                Field: "instanceId"
+                - 
+                Type: binpack
+                Field: "cpu"
+                - 
+                Type: binpack
+                Field: "memory"
+            LoadBalancers:
+                - 
+                ContainerName:  !Ref 'AWS::StackName'
+                ContainerPort: !Ref 'Port'
+                TargetGroupArn: ""
+            
+            

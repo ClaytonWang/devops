@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: >
+  CloudFormation template for DAMO CA Summary SES Solution
+
+Parameters:
+  UsedEnviron:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - prod
+      - cert
+      - dev
+  RuleSetName:
+    Type: String
+    Default: default-rule-set
+
+Mappings:
+  RecipientMap:
+    dev:
+      value: damo-ca-summary-dev@aicat.me
+    cert:
+      value: damo-ca-summary-cert@aicat-prod.me
+    prod:
+      value: damo-ca-summary@aicat-prod.me
+
+Resources:
+
+  ReceiptRule:
+    Type: AWS::SES::ReceiptRule
+    Properties:
+      RuleSetName: !Ref RuleSetName
+      Rule:
+        Name: !Sub "RecipientsRule-${UsedEnviron}"
+        Recipients: !Split [ ',', !FindInMap [ RecipientMap, !Ref Env, value ] ]
+        Enabled: true
+        ScanEnabled: true
+        Actions:
+          - S3Action:
+              BucketName: !Sub 'damo-ca-summary-ses-${UsedEnviron}'
+              ObjectKeyPrefix: inbox

@@ -1,0 +1,46 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+variables:      
+  ProjectName: 'history_model_service'
+  DisplayName: 'History model service'
+  
+pr:
+  - master
+  - dev
+  - release
+  
+stages:
+  - stage: stage1
+    displayName: stage1
+    jobs:  
+    - job: UT
+      displayName: UT
+      pool:
+        name: 'dev-cluster'
+      steps:    
+      - bash: |
+          python3 -m pip install -r requirements.txt --user
+          python3 -m pip install  -r requirements_test.txt --user
+        displayName: 'install packages for test'
+        condition: succeededOrFailed()
+        enabled: true
+        continueOnError: true
+
+      - bash: 'python3 -m pytest --junitxml=$(ProjectName)-$(Build.BuildNumber).xml  --cov=./ --cov-report=xml  --cov-report=term '
+        workingDirectory: '$(System.DefaultWorkingDirectory)'
+        displayName: 'run test'
+        continueOnError: true
+        condition: succeededOrFailed()
+
+      - task: PublishTestResults@2
+        displayName: 'Publish Test Results **/$(ProjectName)-$(Build.BuildNumber).xml'
+        inputs:
+          testResultsFiles: '**/$(ProjectName)-$(Build.BuildNumber).xml'
+      
+      - task: PublishCodeCoverageResults@1
+        displayName: 'Publish code coverage from $(System.DefaultWorkingDirectory)/**/coverage.xml'
+        inputs:
+          codeCoverageTool: Cobertura
+          summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
+          reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
+          additionalCodeCoverageFiles: '$(System.DefaultWorkingDirectory)/htmlcov/**/*.*'
+        condition: succeededOrFailed()
